@@ -1,0 +1,8 @@
+{
+  "serverPostEnabled": true,
+  "postUrl": "https://YOUR-VERCEL-PROJECT.vercel.app/api/ingest",
+  "postToken": "copy WEATHER_STATION_API_KEY from .env.local or Vercel env",
+  "serverPostSunMs": 600000,
+  "serverPostShadowMs": 600000,
+  "serverPostDarkMs": 1800000
+}
