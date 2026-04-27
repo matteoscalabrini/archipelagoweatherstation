@@ -5,3 +5,4 @@ out
 *.log
 .env*.local
 config/*.local.json
+*.tsbuildinfo
