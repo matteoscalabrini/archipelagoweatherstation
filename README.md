@@ -37,8 +37,22 @@ npm run dev
 WEATHER_STATION_API_KEY=<same value as local .env.local>
 ```
 
-4. Deploy.
-5. In the weather station admin page, set:
+4. Check that the Redis/Upstash integration created either of these environment variable pairs:
+
+```text
+KV_REST_API_URL
+KV_REST_API_TOKEN
+```
+
+or:
+
+```text
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+```
+
+5. Deploy.
+6. In the weather station admin page, set:
 
 ```text
 serverPostEnabled = true

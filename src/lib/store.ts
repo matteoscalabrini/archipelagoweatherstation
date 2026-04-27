@@ -8,13 +8,21 @@ type MemoryGlobal = typeof globalThis & {
 };
 
 function kvConfigured() {
-  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  return Boolean(redisUrl() && redisToken());
+}
+
+function redisUrl() {
+  return process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL ?? "";
+}
+
+function redisToken() {
+  return process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN ?? "";
 }
 
 function redisClient() {
   return new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!
+    url: redisUrl(),
+    token: redisToken()
   });
 }
 
