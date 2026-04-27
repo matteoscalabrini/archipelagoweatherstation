@@ -9,30 +9,18 @@ type ApiResponse = {
   telemetry: WeatherStationTelemetry;
 };
 
-function formatValue(value: number | string | null | undefined, unit?: string) {
+function fmt(value: number | string | null | undefined, unit?: string) {
   if (value === null || value === undefined || value === "") return "--";
   return `${value}${unit ? ` ${unit}` : ""}`;
 }
 
-function ageLabel(receivedAt?: string) {
-  if (!receivedAt) return "NO DATA";
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(receivedAt).getTime()) / 1000));
-  if (seconds < 60) return `${seconds}s AGO`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m AGO`;
-  return `${Math.floor(minutes / 60)}h AGO`;
-}
-
-function MissionClock() {
-  const [time, setTime] = useState("");
-  useEffect(() => {
-    const update = () =>
-      setTime(new Date().toISOString().replace("T", " · ").slice(0, 22) + "Z");
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, []);
-  return <span className="mission-clock">{time}</span>;
+function age(receivedAt?: string) {
+  if (!receivedAt) return "no data";
+  const s = Math.max(0, Math.floor((Date.now() - new Date(receivedAt).getTime()) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.floor(m / 60)}h ago`;
 }
 
 export default function Dashboard() {
@@ -45,121 +33,60 @@ export default function Dashboard() {
 
     async function load() {
       try {
-        const response = await fetch("/api/latest", { cache: "no-store" });
-        const data = (await response.json()) as ApiResponse;
+        const res = await fetch("/api/latest", { cache: "no-store" });
+        const data = (await res.json()) as ApiResponse;
         if (cancelled) return;
         setTelemetry(data.telemetry);
         setConnected(data.connected);
         setError("");
       } catch {
-        if (!cancelled) setError("LINK LOST");
+        if (!cancelled) setError("connection lost");
       }
     }
 
     load();
-    const timer = window.setInterval(load, 10000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
+    const t = window.setInterval(load, 10000);
+    return () => { cancelled = true; window.clearInterval(t); };
   }, []);
 
   const displays = telemetry?.displays ?? [];
-  const status = error ? "error" : connected ? "online" : "standby";
-  const activeSensors = displays.filter((d) => d?.online).length;
+  const status = error ? "error" : connected ? "online" : "waiting";
 
   return (
     <main>
-      {/* HEADER */}
-      <header className="mission-header">
-        <div className="mission-id">
-          <div className="mission-badge">
-            <span className="badge-icon">◈</span>
-          </div>
-          <div>
-            <div className="mission-eyebrow">AUTONOMOUS METEOROLOGICAL UNIT</div>
-            <h1 className="mission-name">ARCHIPELAGO</h1>
-            <div className="mission-sub">FIELD TELEMETRY · WEATHER ARRAY · UNIT-01</div>
-          </div>
-        </div>
-
-        <div className="mission-status-panel">
-          <MissionClock />
-          <div className={`link-state ${status}`}>
-            <span className={`status-dot ${status}`} />
-            {error || (connected ? "ONLINE" : "STANDBY")}
-          </div>
-        </div>
+      <header className="top">
+        <h1>Archipelago Weather Station</h1>
+        <span className={`tag ${status === "online" ? "online" : status === "error" ? "error" : ""}`}>
+          {error || status}
+        </span>
       </header>
 
-      {/* SCAN DIVIDER */}
-      <div className="scan-line">
-        <span className="scan-tick">◄</span>
-        <div className="scan-bar" />
-        <span className="scan-tick">►</span>
+      <div className="bar">
+        <span>MODE&nbsp; <strong>{(telemetry?.solarMode ?? "--").toString().toUpperCase()}</strong></span>
+        <span>LAST&nbsp; <strong>{age(telemetry?.receivedAt)}</strong></span>
+        <span>BOARD&nbsp;<strong>{telemetry?.board ?? "--"}</strong></span>
       </div>
 
-      {/* TELEMETRY STATUS BAR */}
-      <section className="telemetry-bar">
-        <div className="tbar-item">
-          <span className="tbar-label">SOLAR MODE</span>
-          <span className="tbar-value">{(telemetry?.solarMode ?? "--").toString().toUpperCase()}</span>
-        </div>
-        <div className="tbar-item">
-          <span className="tbar-label">LAST READING</span>
-          <span className="tbar-value">{ageLabel(telemetry?.receivedAt)}</span>
-        </div>
-        <div className="tbar-item">
-          <span className="tbar-label">BOARD ID</span>
-          <span className="tbar-value">{telemetry?.board ?? "--"}</span>
-        </div>
-        <div className="tbar-item">
-          <span className="tbar-label">ACTIVE SENSORS</span>
-          <span className="tbar-value">{activeSensors} / {displays.length || "--"}</span>
-        </div>
-      </section>
-
-      {/* SENSOR GRID */}
-      <section className="sensor-grid" aria-label="Sensor telemetry">
-        {Array.from({ length: 9 }).map((_, index) => {
-          const display = displays[index];
-          const secondary = display?.secondaryLabel
-            ? `${display.secondaryLabel} ${formatValue(display.secondary, display.secondaryUnit)}`
-            : formatValue(display?.secondary, display?.secondaryUnit);
+      <section className="grid" aria-label="Sensor readings">
+        {Array.from({ length: 9 }).map((_, i) => {
+          const d = displays[i];
+          const secondary = d?.secondaryLabel
+            ? `${d.secondaryLabel} ${fmt(d.secondary, d.secondaryUnit)}`
+            : fmt(d?.secondary, d?.secondaryUnit);
 
           return (
-            <article
-              className={`sensor-tile ${display?.online ? "is-online" : "is-offline"}`}
-              key={index}
-            >
-              <div className="tile-corner tl" />
-              <div className="tile-corner tr" />
-              <div className="tile-corner bl" />
-              <div className="tile-corner br" />
-
-              <header className="tile-header">
-                <span className="tile-label">{display?.label ?? `CHANNEL ${index + 1}`}</span>
-                <span className={`tile-status ${display?.online ? "online" : "offline"}`}>
-                  <span className={`status-dot ${display?.online ? "online" : "offline"}`} />
-                  {display?.online ? "LIVE" : "OFFLINE"}
-                </span>
-              </header>
-
-              <div className="tile-value">{formatValue(display?.primary, display?.primaryUnit)}</div>
-              <div className="tile-secondary">
-                {secondary !== "--" ? secondary : <span className="no-data">NO DATA</span>}
+            <article className={`tile ${d?.online ? "live" : ""}`} key={i}>
+              <div className="tile-label">{d?.label ?? `Channel ${i + 1}`}</div>
+              <div className={`tile-value ${d?.online ? "" : "dim"}`}>
+                {fmt(d?.primary, d?.primaryUnit)}
               </div>
-
-              <div className="tile-index">CH{String(index + 1).padStart(2, "0")}</div>
+              {secondary !== "--" && (
+                <div className="tile-secondary">{secondary}</div>
+              )}
             </article>
           );
         })}
       </section>
-
-      <footer className="mission-footer">
-        <span>ARCHIPELAGO METEOROLOGICAL ARRAY · ALL SYSTEMS NOMINAL</span>
-        <span>TELEMETRY v1.0 · ESP32 · VERCEL EDGE</span>
-      </footer>
     </main>
   );
 }

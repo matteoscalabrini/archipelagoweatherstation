@@ -1,21 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
-
 :root {
   color-scheme: dark;
-  --bg:        #03060f;
-  --bg-tile:   #060a18;
-  --text:      #c8dde8;
-  --blue:      #4db8ff;
-  --blue-dim:  rgba(77, 184, 255, 0.18);
-  --blue-glow: rgba(77, 184, 255, 0.08);
-  --cyan:      #00d4ff;
-  --green:     #39ff14;
-  --red:       #ff4444;
-  --muted:     #2e4a60;
-  --border:    rgba(77, 184, 255, 0.1);
-  --border-hi: rgba(77, 184, 255, 0.4);
-  --font-display: 'Orbitron', monospace;
-  --font-mono:    'Share Tech Mono', monospace;
+  --bg:     #0a0a0a;
+  --tile:   #111;
+  --text:   #e0e0e0;
+  --muted:  #444;
+  --blue:   #4da6ff;
+  --green:  #3ddc84;
+  --warn:   #ff5f5f;
+  --border: #1e1e1e;
 }
 
 * { box-sizing: border-box; }
@@ -25,332 +17,111 @@ html, body {
   min-height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-mono);
-}
-
-body {
-  background-image:
-    linear-gradient(rgba(77, 184, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(77, 184, 255, 0.03) 1px, transparent 1px);
-  background-size: 48px 48px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 main {
-  width: min(1200px, 100%);
+  width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
 }
 
-/* ── HEADER ──────────────────────────────────────────────────────── */
+/* ── HEADER ── */
 
-.mission-header {
+header.top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: baseline;
   gap: 1rem;
-  padding-bottom: 1.2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
 }
 
-.mission-id {
-  display: flex;
-  align-items: center;
-  gap: 1.1rem;
-}
-
-.mission-badge {
-  width: 54px;
-  height: 54px;
-  border: 2px solid var(--blue);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--blue);
-  font-size: 1.7rem;
-  transform: rotate(45deg);
-  flex-shrink: 0;
-  box-shadow: 0 0 24px rgba(77, 184, 255, 0.3), inset 0 0 20px rgba(77, 184, 255, 0.06);
-}
-
-.badge-icon {
-  display: block;
-  transform: rotate(-45deg);
-}
-
-.mission-eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.63rem;
-  color: var(--blue);
-  letter-spacing: 0.18em;
-  margin-bottom: 0.25rem;
-}
-
-h1.mission-name {
-  font-family: var(--font-display);
-  font-size: clamp(1.6rem, 5vw, 2.9rem);
-  font-weight: 900;
-  color: #fff;
+h1 {
   margin: 0;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-shadow: 0 0 40px rgba(77, 184, 255, 0.55), 0 0 80px rgba(77, 184, 255, 0.2);
+  font-size: clamp(1.1rem, 3vw, 1.5rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue);
 }
 
-.mission-sub {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
+.tag {
+  font-size: 0.72rem;
   color: var(--muted);
-  letter-spacing: 0.15em;
-  margin-top: 0.3rem;
+  letter-spacing: 0.08em;
 }
 
-.mission-status-panel {
+.tag.online { color: var(--green); }
+.tag.error  { color: var(--warn); }
+
+/* ── STATUS BAR ── */
+
+.bar {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.55rem;
-}
-
-.mission-clock {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
+  gap: 2rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.72rem;
   color: var(--muted);
   letter-spacing: 0.06em;
 }
 
-.link-state {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0.85rem;
-  border: 1px solid var(--border-hi);
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--blue);
-  transition: color 0.3s, border-color 0.3s;
+.bar span strong {
+  color: var(--text);
+  font-weight: 400;
 }
 
-.link-state.online  { color: var(--green); border-color: rgba(57, 255, 20, 0.4); }
-.link-state.standby { color: var(--blue);  border-color: var(--border-hi); }
-.link-state.error   { color: var(--red);   border-color: rgba(255, 68, 68, 0.4); }
+/* ── GRID ── */
 
-/* ── STATUS DOT ──────────────────────────────────────────────────── */
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-dot.online  { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse-dot 2s ease-in-out infinite; }
-.status-dot.standby { background: var(--blue);  box-shadow: 0 0 8px var(--blue);  animation: pulse-dot 2.5s ease-in-out infinite; }
-.status-dot.error   { background: var(--red);   box-shadow: 0 0 8px var(--red);   animation: pulse-dot 0.9s ease-in-out infinite; }
-.status-dot.offline { background: var(--muted); }
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
-}
-
-/* ── SCAN DIVIDER ─────────────────────────────────────────────────── */
-
-.scan-line {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 0.85rem;
-}
-
-.scan-tick {
-  color: var(--blue);
-  font-size: 0.65rem;
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.scan-bar {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    var(--blue) 0%,
-    rgba(77, 184, 255, 0.35) 40%,
-    transparent 100%
-  );
-}
-
-/* ── TELEMETRY BAR ───────────────────────────────────────────────── */
-
-.telemetry-bar {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
-}
-
-.tbar-item {
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--border);
-  background: var(--bg-tile);
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.tbar-label {
-  font-family: var(--font-mono);
-  font-size: 0.56rem;
-  color: var(--muted);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.tbar-value {
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  color: var(--blue);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-/* ── SENSOR GRID ─────────────────────────────────────────────────── */
-
-.sensor-grid {
+.grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.6rem;
+  gap: 0.5rem;
 }
 
-.sensor-tile {
-  position: relative;
-  min-height: 144px;
-  padding: 0.8rem;
-  background: var(--bg-tile);
+.tile {
+  background: var(--tile);
   border: 1px solid var(--border);
-}
-
-.sensor-tile.is-online  { border-color: rgba(77, 184, 255, 0.16); }
-.sensor-tile.is-offline { border-color: rgba(46, 74, 96, 0.3); }
-
-/* corner brackets */
-.tile-corner {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-}
-
-.tile-corner.tl { top: -1px;    left: -1px;  border-top:    2px solid var(--blue); border-left:   2px solid var(--blue); }
-.tile-corner.tr { top: -1px;    right: -1px; border-top:    2px solid var(--blue); border-right:  2px solid var(--blue); }
-.tile-corner.bl { bottom: -1px; left: -1px;  border-bottom: 2px solid var(--blue); border-left:   2px solid var(--blue); }
-.tile-corner.br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--blue); border-right:  2px solid var(--blue); }
-
-.sensor-tile.is-offline .tile-corner { border-color: var(--muted); opacity: 0.35; }
-
-.tile-header {
+  border-top: 2px solid var(--border);
+  padding: 1rem;
+  min-height: 130px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 0.45rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0.55rem;
+  flex-direction: column;
 }
+
+.tile.live { border-top-color: var(--blue); }
 
 .tile-label {
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  color: var(--muted);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.tile-status {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-family: var(--font-mono);
-  font-size: 0.55rem;
-  letter-spacing: 0.1em;
-}
-
-.tile-status.online  { color: var(--green); }
-.tile-status.offline { color: var(--muted); }
-
-.tile-value {
-  font-family: var(--font-display);
-  font-size: clamp(1.35rem, 2.8vw, 2rem);
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.1;
-  overflow-wrap: anywhere;
-  margin-bottom: 0.4rem;
-  text-shadow: 0 0 28px rgba(77, 184, 255, 0.45);
-}
-
-.sensor-tile.is-offline .tile-value {
-  color: var(--muted);
-  text-shadow: none;
-}
-
-.tile-secondary {
-  font-family: var(--font-mono);
   font-size: 0.65rem;
   color: var(--muted);
-  min-height: 1rem;
-}
-
-.tile-index {
-  position: absolute;
-  bottom: 0.45rem;
-  right: 0.55rem;
-  font-family: var(--font-mono);
-  font-size: 0.5rem;
-  color: var(--muted);
   letter-spacing: 0.1em;
-  opacity: 0.4;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
 }
 
-.no-data { opacity: 0.35; }
+.tile-value {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  flex: 1;
+}
 
-/* ── FOOTER ──────────────────────────────────────────────────────── */
+.tile-value.dim { color: var(--muted); }
 
-.mission-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 1rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 0.57rem;
+.tile-secondary {
+  font-size: 0.68rem;
   color: var(--muted);
-  letter-spacing: 0.1em;
+  margin-top: 0.4rem;
 }
 
-/* ── RESPONSIVE ──────────────────────────────────────────────────── */
+/* ── RESPONSIVE ── */
 
-@media (max-width: 760px) {
-  main { padding: 0.75rem; }
-
-  .mission-header { flex-direction: column; gap: 0.7rem; }
-
-  .mission-status-panel {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-  }
-
-  .telemetry-bar { grid-template-columns: repeat(2, 1fr); }
-
-  .sensor-grid { gap: 0.4rem; }
-
-  .sensor-tile { min-height: 110px; padding: 0.5rem; }
-
-  .tile-value { font-size: 1.1rem; }
-
-  .tile-label { font-size: 0.56rem; }
-
-  .mission-footer { flex-direction: column; gap: 0.3rem; text-align: center; }
+@media (max-width: 640px) {
+  header.top { flex-direction: column; gap: 0.4rem; }
+  .bar { flex-direction: column; gap: 0.4rem; }
+  .grid { gap: 0.4rem; }
+  .tile { min-height: 100px; padding: 0.75rem; }
+  .tile-value { font-size: 1.2rem; }
 }
