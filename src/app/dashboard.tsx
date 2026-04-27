@@ -15,7 +15,7 @@ function fmt(value: number | string | null | undefined, unit?: string) {
 }
 
 function age(receivedAt?: string) {
-  if (!receivedAt) return "no data";
+  if (!receivedAt) return "--";
   const s = Math.max(0, Math.floor((Date.now() - new Date(receivedAt).getTime()) / 1000));
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
@@ -54,17 +54,22 @@ export default function Dashboard() {
 
   return (
     <main>
-      <header className="top">
-        <h1>Archipelago Weather Station</h1>
-        <span className={`tag ${status === "online" ? "online" : status === "error" ? "error" : ""}`}>
-          {error || status}
+      <nav className="topbar">
+        <span className="brand">Archipelago</span>
+        <span className={`status-pill ${status}`}>
+          {error || (connected ? "Online" : "Waiting")}
         </span>
-      </header>
+      </nav>
 
-      <div className="bar">
-        <span>MODE&nbsp; <strong>{(telemetry?.solarMode ?? "--").toString().toUpperCase()}</strong></span>
-        <span>LAST&nbsp; <strong>{age(telemetry?.receivedAt)}</strong></span>
-        <span>BOARD&nbsp;<strong>{telemetry?.board ?? "--"}</strong></span>
+      <div className="page-title">
+        <h1>Weather <em>Station</em></h1>
+      </div>
+
+      <div className="meta-row">
+        <span>Mode &nbsp;<strong>{(telemetry?.solarMode ?? "--").toString()}</strong></span>
+        <span>Last &nbsp;<strong>{age(telemetry?.receivedAt)}</strong></span>
+        <span>Board &nbsp;<strong>{telemetry?.board ?? "--"}</strong></span>
+        <span>Active &nbsp;<strong>{displays.filter(d => d?.online).length} / {displays.length || "--"}</strong></span>
       </div>
 
       <section className="grid" aria-label="Sensor readings">
@@ -75,8 +80,11 @@ export default function Dashboard() {
             : fmt(d?.secondary, d?.secondaryUnit);
 
           return (
-            <article className={`tile ${d?.online ? "live" : ""}`} key={i}>
-              <div className="tile-label">{d?.label ?? `Channel ${i + 1}`}</div>
+            <article className="tile" key={i}>
+              <div className="tile-top">
+                <div className={`tile-dot ${d?.online ? "live" : ""}`} />
+                <span className="tile-label">{d?.label ?? `Channel ${i + 1}`}</span>
+              </div>
               <div className={`tile-value ${d?.online ? "" : "dim"}`}>
                 {fmt(d?.primary, d?.primaryUnit)}
               </div>
