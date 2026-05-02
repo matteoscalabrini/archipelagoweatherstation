@@ -329,10 +329,21 @@ h1 em {
 }
 
 .admin-muted,
-.admin-message {
+.admin-message,
+.admin-help {
   margin: 0;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.admin-help {
+  max-width: 64rem;
+  line-height: 1.45;
+}
+
+.admin-help.field-help {
+  font-size: 0.72rem;
+  min-height: 2.1rem;
 }
 
 .admin-message {
@@ -343,6 +354,7 @@ h1 em {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.9rem;
+  align-items: stretch;
 }
 
 .admin-grid.top-gap {
@@ -353,12 +365,17 @@ h1 em {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.9rem;
+  align-items: stretch;
+  grid-auto-rows: 1fr;
 }
 
 .artifact-card {
   border: 1px solid var(--border);
   background: #101010;
   padding: 1rem;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .artifact-card h3 {
@@ -371,6 +388,11 @@ h1 em {
 
 .artifact-card .admin-field {
   margin-bottom: 0.75rem;
+}
+
+.artifact-card .admin-button {
+  margin-top: auto;
+  width: fit-content;
 }
 
 .artifact-status-head {
@@ -424,6 +446,7 @@ h1 em {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  min-height: 6.7rem;
 }
 
 .admin-field.wide {
@@ -452,6 +475,12 @@ h1 em {
   padding: 0.55rem 0.65rem;
 }
 
+.admin-field input,
+.admin-field select,
+.admin-input-row {
+  margin-top: auto;
+}
+
 .admin-field input[type="file"] {
   padding-top: 0.48rem;
 }
@@ -475,8 +504,6 @@ h1 em {
 }
 
 .admin-check {
-  justify-content: center;
-  min-height: 4rem;
   border: 1px solid var(--border);
   padding: 0.7rem;
 }
@@ -484,6 +511,7 @@ h1 em {
 .admin-check input {
   width: 1.1rem;
   height: 1.1rem;
+  flex: 0 0 auto;
 }
 
 .admin-button {

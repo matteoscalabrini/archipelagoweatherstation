@@ -54,9 +54,17 @@ const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; s
   { key: "remoteFirmwareCheckMs", label: "Firmware check", step: "1000", suffix: "ms" }
 ];
 
-const boolFields: Array<{ key: ConfigBoolKey; label: string }> = [
-  { key: "serverPostEnabled", label: "Server posting" },
-  { key: "wifiApAlways", label: "Debug AP always" }
+const boolFields: Array<{ key: ConfigBoolKey; label: string; help: string }> = [
+  {
+    key: "serverPostEnabled",
+    label: "Server posting",
+    help: "Enables scheduled telemetry posts from the station to this website."
+  },
+  {
+    key: "wifiApAlways",
+    label: "Debug AP always",
+    help: "Keeps the local setup access point visible while the station is awake."
+  }
 ];
 
 const emptyConfigDraft: ConfigDraft = {
@@ -264,9 +272,13 @@ export default function AdminClient() {
   }
 
   function renderUpload(type: "firmware" | "spiffs", label: string) {
+    const help = type === "firmware"
+      ? "Upload the PlatformIO firmware.bin. A successful upload replaces the previous firmware blob."
+      : "Upload the PlatformIO SPIFFS image. A successful upload replaces the previous SPIFFS blob.";
     return (
       <form className="artifact-card" onSubmit={event => uploadArtifact(type, event)}>
         <h3>{label}</h3>
+        <p className="admin-help">{help}</p>
         <label className="admin-field">
           <span>Version</span>
           <input name="version" />
@@ -373,6 +385,9 @@ export default function AdminClient() {
           <div>
             <h2>Remote Config</h2>
             <p className="admin-muted">Station {updatedLabel(latest?.receivedAt)} · Saved {updatedLabel(configUpdatedAt)}</p>
+            <p className="admin-help">
+              Values are filled from the latest station report when available. Saving writes the desired remote config; the station applies it on its next config pull.
+            </p>
           </div>
           <button className="admin-button primary" disabled={busy}>Save Config</button>
         </div>
@@ -381,6 +396,7 @@ export default function AdminClient() {
           {configFields.map(field => (
             <label className="admin-field" key={field.key}>
               <span>{field.label}</span>
+              <p className="admin-help field-help">Leave unchanged only when you want to keep this current value.</p>
               <div className="admin-input-row">
                 <input
                   type="number"
@@ -399,6 +415,7 @@ export default function AdminClient() {
           {boolFields.map(field => (
             <label className="admin-field" key={field.key}>
               <span>{field.label}</span>
+              <p className="admin-help field-help">{field.help} Choose Leave local to stop overriding this setting remotely.</p>
               <select
                 value={configDraft[field.key]}
                 onChange={event => setConfigDraft(current => ({
@@ -420,6 +437,9 @@ export default function AdminClient() {
           <div>
             <h2>Upload</h2>
             <p className="admin-muted">Manifest {updatedLabel(firmwareUpdatedAt)}</p>
+            <p className="admin-help">
+              Uploads are stored by the website. Each new firmware or SPIFFS upload deletes the previous file for that slot after the new file is saved.
+            </p>
           </div>
         </div>
         <div className="artifact-grid">
@@ -433,6 +453,9 @@ export default function AdminClient() {
           <div>
             <h2>Update Status</h2>
             <p className="admin-muted">Station {updatedLabel(latest?.receivedAt)}</p>
+            <p className="admin-help">
+              Target is the uploaded manifest version. Station is the last version reported by telemetry. Pending means the station has not reported the target yet.
+            </p>
           </div>
           <button className="admin-button primary" disabled={busy}>Save Flags</button>
         </div>
@@ -450,6 +473,7 @@ export default function AdminClient() {
               onChange={event => setArtifact("firmware", { enabled: event.target.checked })}
             />
             <span>Firmware update</span>
+            <p className="admin-help field-help">Tick to offer the uploaded firmware to the station. Untick to pause delivery without deleting the upload.</p>
           </label>
           <label className="admin-field">
             <span>Firmware version</span>
@@ -473,6 +497,7 @@ export default function AdminClient() {
               onChange={event => setArtifact("spiffs", { enabled: event.target.checked })}
             />
             <span>SPIFFS update</span>
+            <p className="admin-help field-help">Tick to offer the uploaded web UI filesystem to the station. Untick to pause delivery.</p>
           </label>
           <label className="admin-field">
             <span>SPIFFS version</span>
