@@ -157,9 +157,12 @@ export default function Dashboard() {
     <main>
       <nav className="topbar">
         <span className="brand">Archipelago</span>
-        <span className={`status-pill ${status}`}>
-          {error || (connected ? "Online" : "Waiting")}
-        </span>
+        <div className="admin-top-actions">
+          <a className="toplink" href="/admin">Admin</a>
+          <span className={`status-pill ${status}`}>
+            {error || (connected ? "Online" : "Waiting")}
+          </span>
+        </div>
       </nav>
 
       <div className="page-title">

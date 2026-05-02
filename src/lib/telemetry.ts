@@ -10,6 +10,7 @@ export type DisplayReading = {
 
 export type WeatherStationTelemetry = {
   board?: string;
+  firmwareVersion?: string;
   uptimeMs?: number;
   solarMode?: "unknown" | "dark" | "shadow" | "sun" | string;
   displaysForcedOff?: boolean;
@@ -21,6 +22,10 @@ export type WeatherStationTelemetry = {
     apIp?: string;
     lastPostCode?: number;
     lastPostMessage?: string;
+    lastRemoteConfigPullMs?: number;
+    remoteConfigMessage?: string;
+    lastFirmwareCheckMs?: number;
+    firmwareMessage?: string;
   };
   sensors?: Record<string, boolean>;
   displays?: DisplayReading[];

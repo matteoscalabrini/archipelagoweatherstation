@@ -18,6 +18,20 @@ The dashboard reads:
 GET /api/latest
 ```
 
+The station also polls authenticated device endpoints:
+
+```text
+GET /api/device/config
+GET /api/device/firmware?version=<current-firmware-version>
+Authorization: Bearer <WEATHER_STATION_API_KEY>
+```
+
+The protected admin UI is available at:
+
+```text
+/admin
+```
+
 ## Local Setup
 
 ```bash
@@ -25,16 +39,24 @@ npm install
 npm run dev
 ```
 
-`.env.local` already contains a generated `WEATHER_STATION_API_KEY` for local testing.
+Local environment variables:
+
+```text
+WEATHER_STATION_API_KEY=<shared station token>
+WEATHER_STATION_ADMIN_PASSWORD=<admin login password>
+ADMIN_SESSION_SECRET=<long random cookie signing secret>
+```
 
 ## Vercel Setup
 
 1. Create a Vercel project from this folder.
 2. Add a Redis/Upstash store from the Vercel Marketplace for persistent latest telemetry.
-3. Add this environment variable in Vercel:
+3. Add these environment variables in Vercel:
 
 ```text
 WEATHER_STATION_API_KEY=<same value as local .env.local>
+WEATHER_STATION_ADMIN_PASSWORD=<admin login password>
+ADMIN_SESSION_SECRET=<long random cookie signing secret>
 ```
 
 4. Check that the Redis/Upstash integration created either of these environment variable pairs:
@@ -52,7 +74,7 @@ UPSTASH_REDIS_REST_TOKEN
 ```
 
 5. Deploy.
-6. In the weather station admin page, set:
+6. In the local weather station admin page, set:
 
 ```text
 serverPostEnabled = true
@@ -67,6 +89,21 @@ config/weatherstation-admin-settings.local.json
 ```
 
 That file is ignored by git because it contains the shared secret.
+
+## Remote Management
+
+`/admin` stores two records in Redis/Upstash, with in-memory fallback for local development:
+
+- Remote config: optional station runtime values. Blank fields are omitted, so the station keeps its local value.
+- Firmware manifest: `enabled`, `version`, `url`, `sha256`, `size`, and `notes`.
+
+For firmware updates, build the ESP32 firmware binary, place it under `public/firmware/` or another reachable HTTPS URL, then save the manifest in `/admin`. A site-hosted binary can use a URL like:
+
+```text
+/firmware/firmware.bin
+```
+
+The ESP32 installs the update only when the manifest is enabled and the manifest version differs from the firmware version reported by the device.
 
 ## Notes
 

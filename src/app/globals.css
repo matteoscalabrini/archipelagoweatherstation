@@ -65,6 +65,22 @@ main {
 .status-pill.online { color: var(--green); border-color: rgba(76, 175, 80, 0.35); }
 .status-pill.error  { color: var(--red);   border-color: rgba(239, 83, 80, 0.35); }
 
+.admin-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.toplink {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.toplink:hover { color: var(--text); }
+
 /* ── PAGE TITLE ── */
 
 .page-title { margin-bottom: 1.75rem; }
@@ -267,10 +283,162 @@ h1 em {
 .sensor-chip.ok  { color: var(--text); }
 .sensor-chip.bad { opacity: 0.6; }
 
+/* ── ADMIN ── */
+
+.admin-page {
+  width: min(1160px, 100%);
+}
+
+.admin-page .brand {
+  text-decoration: none;
+}
+
+.admin-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.admin-panel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.2rem;
+  margin-bottom: 1.2rem;
+}
+
+.admin-panel.compact {
+  max-width: 420px;
+  margin: 4rem auto 0;
+}
+
+.admin-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.admin-section-head h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.admin-muted,
+.admin-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.admin-message {
+  min-height: 1rem;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.9rem;
+}
+
+.admin-field,
+.admin-check {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.admin-field.wide {
+  grid-column: span 2;
+}
+
+.admin-field span,
+.admin-check span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: #101010;
+  color: var(--text);
+  font: inherit;
+  min-height: 2.4rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.admin-field textarea {
+  resize: vertical;
+}
+
+.admin-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-input-row b {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  min-width: 3rem;
+}
+
+.admin-check {
+  justify-content: center;
+  min-height: 4rem;
+  border: 1px solid var(--border);
+  padding: 0.7rem;
+}
+
+.admin-check input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.admin-button {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 500;
+  min-height: 2.4rem;
+  padding: 0 0.8rem;
+  cursor: pointer;
+}
+
+.admin-button.primary {
+  border-color: rgba(76, 175, 80, 0.42);
+  color: #d9f4db;
+}
+
+.admin-button.ghost {
+  color: var(--muted);
+}
+
+.admin-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 /* ── RESPONSIVE ── */
 
 @media (max-width: 760px) {
   .health-grid { grid-template-columns: repeat(2, 1fr); }
+  .admin-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 640px) {
@@ -278,6 +446,13 @@ h1 em {
   .grid { grid-template-columns: repeat(2, 1fr); }
   .tile { min-height: 150px; padding: 1rem; }
   .meta-row { gap: 1rem; }
+  .admin-title-row,
+  .admin-section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-grid { grid-template-columns: 1fr; }
+  .admin-field.wide { grid-column: auto; }
 }
 
 @media (max-width: 380px) {
