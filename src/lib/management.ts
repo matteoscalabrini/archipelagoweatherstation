@@ -14,15 +14,23 @@ export type StationRemoteConfig = {
   batteryPercentFullVoltageV?: number;
   remoteConfigPullMs?: number;
   remoteFirmwareCheckMs?: number;
+  wifiApAlways?: boolean;
 };
 
-export type FirmwareManifest = {
+export type FirmwareArtifact = {
   enabled: boolean;
   version: string;
   url: string;
   sha256: string;
   size: number;
+  uploadedAt: string | null;
+  filename: string;
   notes: string;
+};
+
+export type FirmwareManifest = {
+  firmware: FirmwareArtifact;
+  spiffs: FirmwareArtifact;
 };
 
 export type RemoteConfigRecord = {
@@ -35,16 +43,23 @@ export type FirmwareManifestRecord = {
   updatedAt: string | null;
 };
 
-export const emptyFirmwareManifest: FirmwareManifest = {
+export const emptyFirmwareArtifact: FirmwareArtifact = {
   enabled: false,
   version: "",
   url: "",
   sha256: "",
   size: 0,
+  uploadedAt: null,
+  filename: "",
   notes: ""
 };
 
-type NumericConfigField = keyof Omit<StationRemoteConfig, "serverPostEnabled">;
+export const emptyFirmwareManifest: FirmwareManifest = {
+  firmware: { ...emptyFirmwareArtifact },
+  spiffs: { ...emptyFirmwareArtifact }
+};
+
+type NumericConfigField = keyof Omit<StationRemoteConfig, "serverPostEnabled" | "wifiApAlways">;
 
 const numberFields: Record<NumericConfigField, { min: number; max: number; integer?: boolean }> = {
   solarSunEnterVoltageV: { min: 0, max: 80 },
@@ -108,11 +123,15 @@ export function sanitizeRemoteConfig(value: unknown): StationRemoteConfig {
   if (serverPostEnabled !== undefined) {
     config.serverPostEnabled = serverPostEnabled;
   }
+  const wifiApAlways = optionalBoolean(source.wifiApAlways);
+  if (wifiApAlways !== undefined) {
+    config.wifiApAlways = wifiApAlways;
+  }
 
   return config;
 }
 
-export function sanitizeFirmwareManifest(value: unknown): FirmwareManifest {
+function sanitizeFirmwareArtifact(value: unknown): FirmwareArtifact {
   const source = sourceObject(value);
   const enabled = optionalBoolean(source.enabled) ?? false;
   const size = optionalNumber(source.size, { min: 0, max: 20 * 1024 * 1024, integer: true }) ?? 0;
@@ -124,6 +143,18 @@ export function sanitizeFirmwareManifest(value: unknown): FirmwareManifest {
     url: cleanString(source.url, 400),
     sha256: /^[0-9a-f]{64}$/.test(sha256) ? sha256 : "",
     size,
+    uploadedAt: cleanString(source.uploadedAt, 40) || null,
+    filename: cleanString(source.filename, 120),
     notes: cleanString(source.notes, 600)
+  };
+}
+
+export function sanitizeFirmwareManifest(value: unknown): FirmwareManifest {
+  const source = sourceObject(value);
+  const hasNestedShape = "firmware" in source || "spiffs" in source;
+
+  return {
+    firmware: sanitizeFirmwareArtifact(hasNestedShape ? source.firmware : source),
+    spiffs: sanitizeFirmwareArtifact(hasNestedShape ? source.spiffs : undefined)
   };
 }

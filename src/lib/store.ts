@@ -5,7 +5,7 @@ import type {
   StationRemoteConfig,
   FirmwareManifest
 } from "./management";
-import { emptyFirmwareManifest } from "./management";
+import { emptyFirmwareManifest, sanitizeFirmwareManifest, sanitizeRemoteConfig } from "./management";
 import type { WeatherStationTelemetry } from "./telemetry";
 
 const latestKey = "weatherstation:latest";
@@ -74,9 +74,12 @@ export async function getRecentTelemetry(limit = 200): Promise<WeatherStationTel
 export async function getRemoteConfig(): Promise<RemoteConfigRecord> {
   if (kvConfigured()) {
     const record = await redisClient().get<RemoteConfigRecord>(remoteConfigKey);
-    return record ?? { config: {}, updatedAt: null };
+    return record ? { config: sanitizeRemoteConfig(record.config), updatedAt: record.updatedAt ?? null } :
+      { config: {}, updatedAt: null };
   }
-  return (globalThis as MemoryGlobal).__weatherstationRemoteConfig ?? { config: {}, updatedAt: null };
+  const record = (globalThis as MemoryGlobal).__weatherstationRemoteConfig;
+  return record ? { config: sanitizeRemoteConfig(record.config), updatedAt: record.updatedAt ?? null } :
+    { config: {}, updatedAt: null };
 }
 
 export async function saveRemoteConfig(config: StationRemoteConfig): Promise<RemoteConfigRecord> {
@@ -92,9 +95,13 @@ export async function saveRemoteConfig(config: StationRemoteConfig): Promise<Rem
 export async function getFirmwareManifest(): Promise<FirmwareManifestRecord> {
   if (kvConfigured()) {
     const record = await redisClient().get<FirmwareManifestRecord>(firmwareManifestKey);
-    return record ?? { manifest: emptyFirmwareManifest, updatedAt: null };
+    return record ?
+      { manifest: sanitizeFirmwareManifest(record.manifest), updatedAt: record.updatedAt ?? null } :
+      { manifest: emptyFirmwareManifest, updatedAt: null };
   }
-  return (globalThis as MemoryGlobal).__weatherstationFirmwareManifest ??
+  const record = (globalThis as MemoryGlobal).__weatherstationFirmwareManifest;
+  return record ?
+    { manifest: sanitizeFirmwareManifest(record.manifest), updatedAt: record.updatedAt ?? null } :
     { manifest: emptyFirmwareManifest, updatedAt: null };
 }
 

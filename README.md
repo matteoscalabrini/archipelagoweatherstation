@@ -45,6 +45,7 @@ Local environment variables:
 WEATHER_STATION_API_KEY=<shared station token>
 WEATHER_STATION_ADMIN_PASSWORD=<admin login password>
 ADMIN_SESSION_SECRET=<long random cookie signing secret>
+BLOB_READ_WRITE_TOKEN=<Vercel Blob token>
 ```
 
 ## Vercel Setup
@@ -57,6 +58,7 @@ ADMIN_SESSION_SECRET=<long random cookie signing secret>
 WEATHER_STATION_API_KEY=<same value as local .env.local>
 WEATHER_STATION_ADMIN_PASSWORD=<admin login password>
 ADMIN_SESSION_SECRET=<long random cookie signing secret>
+BLOB_READ_WRITE_TOKEN=<Vercel Blob read/write token>
 ```
 
 4. Check that the Redis/Upstash integration created either of these environment variable pairs:
@@ -92,18 +94,21 @@ That file is ignored by git because it contains the shared secret.
 
 ## Remote Management
 
-`/admin` stores two records in Redis/Upstash, with in-memory fallback for local development:
+`/admin` stores remote config and update manifests in Redis/Upstash, with in-memory fallback for local development. Uploaded binaries are stored in Vercel Blob:
 
-- Remote config: optional station runtime values. Blank fields are omitted, so the station keeps its local value.
-- Firmware manifest: `enabled`, `version`, `url`, `sha256`, `size`, and `notes`.
+- Remote config: station runtime values, seeded from the latest station telemetry when available.
+- Firmware upload: stores the newest `firmware.bin`, computes SHA-256/size, updates the manifest, and deletes the previous firmware blob after the new upload succeeds.
+- SPIFFS upload: stores the newest SPIFFS image, computes SHA-256/size, updates the manifest, and deletes the previous SPIFFS blob after the new upload succeeds.
+- Update status: compares the target versions with the latest `firmwareVersion` and `spiffsVersion` reported by the station.
 
-For firmware updates, build the ESP32 firmware binary, place it under `public/firmware/` or another reachable HTTPS URL, then save the manifest in `/admin`. A site-hosted binary can use a URL like:
+For firmware updates, build the ESP32 firmware binary and upload it in `/admin`. For SPIFFS updates, build the filesystem image and upload it in `/admin`.
 
 ```text
-/firmware/firmware.bin
+~/.platformio/penv/bin/pio run
+~/.platformio/penv/bin/pio run -t buildfs
 ```
 
-The ESP32 installs the update only when the manifest is enabled and the manifest version differs from the firmware version reported by the device.
+The ESP32 installs an update only when the manifest is enabled and the manifest version differs from the version reported by the device.
 
 ## Notes
 

@@ -3,14 +3,15 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   emptyFirmwareManifest,
+  type FirmwareArtifact,
   type FirmwareManifest,
   type StationRemoteConfig
 } from "@/lib/management";
+import type { WeatherStationTelemetry } from "@/lib/telemetry";
 
-type ConfigNumberKey = keyof Omit<StationRemoteConfig, "serverPostEnabled">;
-type ConfigDraft = Partial<Record<ConfigNumberKey, string>> & {
-  serverPostEnabled: "" | "true" | "false";
-};
+type ConfigNumberKey = keyof Omit<StationRemoteConfig, "serverPostEnabled" | "wifiApAlways">;
+type ConfigBoolKey = "serverPostEnabled" | "wifiApAlways";
+type ConfigDraft = Partial<Record<ConfigNumberKey, string>> & Record<ConfigBoolKey, "" | "true" | "false">;
 
 type SessionResponse = {
   success: boolean;
@@ -30,6 +31,12 @@ type FirmwareResponse = {
   updatedAt: string | null;
 };
 
+type LatestResponse = {
+  success: boolean;
+  connected: boolean;
+  telemetry: WeatherStationTelemetry;
+};
+
 const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; suffix: string }> = [
   { key: "solarSunEnterVoltageV", label: "Sun enter voltage", step: "0.1", suffix: "V" },
   { key: "solarSunExitVoltageV", label: "Sun exit voltage", step: "0.1", suffix: "V" },
@@ -47,11 +54,24 @@ const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; s
   { key: "remoteFirmwareCheckMs", label: "Firmware check", step: "1000", suffix: "ms" }
 ];
 
-const emptyConfigDraft: ConfigDraft = { serverPostEnabled: "" };
+const boolFields: Array<{ key: ConfigBoolKey; label: string }> = [
+  { key: "serverPostEnabled", label: "Server posting" },
+  { key: "wifiApAlways", label: "Debug AP always" }
+];
+
+const emptyConfigDraft: ConfigDraft = {
+  serverPostEnabled: "",
+  wifiApAlways: ""
+};
+
+function hasConfigValues(config: StationRemoteConfig | undefined) {
+  return Boolean(config && Object.keys(config).length > 0);
+}
 
 function asDraft(config: StationRemoteConfig): ConfigDraft {
   const draft: ConfigDraft = {
-    serverPostEnabled: config.serverPostEnabled === undefined ? "" : String(config.serverPostEnabled) as "true" | "false"
+    serverPostEnabled: config.serverPostEnabled === undefined ? "" : String(config.serverPostEnabled) as "true" | "false",
+    wifiApAlways: config.wifiApAlways === undefined ? "" : String(config.wifiApAlways) as "true" | "false"
   };
   for (const field of configFields) {
     const value = config[field.key];
@@ -60,7 +80,7 @@ function asDraft(config: StationRemoteConfig): ConfigDraft {
   return draft;
 }
 
-function updatedLabel(value: string | null) {
+function updatedLabel(value: string | null | undefined) {
   if (!value) return "not saved";
   return new Date(value).toLocaleString();
 }
@@ -71,10 +91,21 @@ function buildConfigPayload(draft: ConfigDraft) {
     const raw = draft[field.key]?.trim() ?? "";
     if (raw !== "") payload[field.key] = Number(raw);
   }
-  if (draft.serverPostEnabled !== "") {
-    payload.serverPostEnabled = draft.serverPostEnabled === "true";
+  for (const field of boolFields) {
+    if (draft[field.key] !== "") payload[field.key] = draft[field.key] === "true";
   }
   return payload;
+}
+
+function artifactStatus(artifact: FirmwareArtifact, currentVersion: string | undefined) {
+  if (!artifact.enabled || !artifact.version) return { text: "Disabled", tone: "muted" };
+  if (currentVersion && currentVersion === artifact.version) return { text: "Installed", tone: "ok" };
+  if (currentVersion) return { text: "Pending", tone: "warn" };
+  return { text: "Waiting", tone: "muted" };
+}
+
+function shortHash(value: string) {
+  return value ? `${value.slice(0, 12)}...${value.slice(-8)}` : "--";
 }
 
 export default function AdminClient() {
@@ -85,21 +116,29 @@ export default function AdminClient() {
   const [configUpdatedAt, setConfigUpdatedAt] = useState<string | null>(null);
   const [firmware, setFirmware] = useState<FirmwareManifest>(emptyFirmwareManifest);
   const [firmwareUpdatedAt, setFirmwareUpdatedAt] = useState<string | null>(null);
+  const [latest, setLatest] = useState<WeatherStationTelemetry | null>(null);
+  const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function loadManagementData() {
-    const [configRes, firmwareRes] = await Promise.all([
+    const [configRes, firmwareRes, latestRes] = await Promise.all([
       fetch("/api/admin/station-config", { cache: "no-store" }),
-      fetch("/api/admin/firmware", { cache: "no-store" })
+      fetch("/api/admin/firmware", { cache: "no-store" }),
+      fetch("/api/latest", { cache: "no-store" })
     ]);
     if (!configRes.ok || !firmwareRes.ok) throw new Error("unauthorized");
     const configJson = await configRes.json() as ConfigResponse;
     const firmwareJson = await firmwareRes.json() as FirmwareResponse;
-    setConfigDraft(asDraft(configJson.config ?? {}));
+    const latestJson = latestRes.ok ? await latestRes.json() as LatestResponse : null;
+    const stationConfig = latestJson?.telemetry?.config;
+
+    setConfigDraft(asDraft(hasConfigValues(stationConfig) ? { ...configJson.config, ...stationConfig } : configJson.config ?? {}));
     setConfigUpdatedAt(configJson.updatedAt ?? null);
     setFirmware(firmwareJson.manifest ?? emptyFirmwareManifest);
     setFirmwareUpdatedAt(firmwareJson.updatedAt ?? null);
+    setLatest(latestJson?.telemetry ?? null);
+    setConnected(Boolean(latestJson?.connected));
   }
 
   useEffect(() => {
@@ -188,12 +227,81 @@ export default function AdminClient() {
       const json = await res.json() as FirmwareResponse;
       setFirmware(json.manifest ?? emptyFirmwareManifest);
       setFirmwareUpdatedAt(json.updatedAt ?? null);
-      setMessage("Firmware manifest saved");
+      setMessage("Update settings saved");
     } catch {
-      setMessage("Firmware manifest save failed");
+      setMessage("Update settings save failed");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function uploadArtifact(type: "firmware" | "spiffs", event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const form = new FormData(event.currentTarget);
+      form.set("type", type);
+      const res = await fetch("/api/admin/upload", { method: "POST", body: form });
+      if (!res.ok) throw new Error("upload_failed");
+      const json = await res.json() as FirmwareResponse;
+      setFirmware(json.manifest ?? emptyFirmwareManifest);
+      setFirmwareUpdatedAt(json.updatedAt ?? null);
+      event.currentTarget.reset();
+      setMessage(`${type === "firmware" ? "Firmware" : "SPIFFS"} uploaded`);
+    } catch {
+      setMessage(`${type === "firmware" ? "Firmware" : "SPIFFS"} upload failed`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function setArtifact(type: "firmware" | "spiffs", patch: Partial<FirmwareArtifact>) {
+    setFirmware(current => ({
+      ...current,
+      [type]: { ...current[type], ...patch }
+    }));
+  }
+
+  function renderUpload(type: "firmware" | "spiffs", label: string) {
+    return (
+      <form className="artifact-card" onSubmit={event => uploadArtifact(type, event)}>
+        <h3>{label}</h3>
+        <label className="admin-field">
+          <span>Version</span>
+          <input name="version" />
+        </label>
+        <label className="admin-field">
+          <span>File</span>
+          <input name="file" type="file" required />
+        </label>
+        <label className="admin-field">
+          <span>Notes</span>
+          <textarea name="notes" rows={3} />
+        </label>
+        <button className="admin-button primary" disabled={busy}>Upload</button>
+      </form>
+    );
+  }
+
+  function renderArtifactStatus(type: "firmware" | "spiffs", label: string, currentVersion: string | undefined) {
+    const artifact = firmware[type];
+    const status = artifactStatus(artifact, currentVersion);
+    return (
+      <div className="artifact-card">
+        <div className="artifact-status-head">
+          <h3>{label}</h3>
+          <span className={`artifact-status ${status.tone}`}>{status.text}</span>
+        </div>
+        <div className="artifact-meta">
+          <span>Target</span><b>{artifact.version || "--"}</b>
+          <span>Station</span><b>{currentVersion || "--"}</b>
+          <span>Uploaded</span><b>{updatedLabel(artifact.uploadedAt)}</b>
+          <span>Size</span><b>{artifact.size ? `${artifact.size} bytes` : "--"}</b>
+          <span>SHA-256</span><b>{shortHash(artifact.sha256)}</b>
+        </div>
+      </div>
+    );
   }
 
   if (!configured) {
@@ -243,21 +351,28 @@ export default function AdminClient() {
       <nav className="topbar">
         <a className="brand" href="/">Archipelago</a>
         <div className="admin-top-actions">
-          <span className="status-pill online">Admin</span>
+          <span className={`status-pill ${connected ? "online" : "waiting"}`}>
+            {connected ? "Station" : "Waiting"}
+          </span>
           <button className="admin-button ghost" type="button" onClick={logout}>Sign Out</button>
         </div>
       </nav>
 
       <div className="admin-title-row">
         <h1>Admin</h1>
-        {message && <div className="admin-message">{message}</div>}
+        <div className="admin-top-actions">
+          {message && <div className="admin-message">{message}</div>}
+          <button className="admin-button ghost" type="button" onClick={loadManagementData} disabled={busy}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       <form className="admin-panel" onSubmit={saveConfig}>
         <div className="admin-section-head">
           <div>
             <h2>Remote Config</h2>
-            <p className="admin-muted">Updated {updatedLabel(configUpdatedAt)}</p>
+            <p className="admin-muted">Station {updatedLabel(latest?.receivedAt)} · Saved {updatedLabel(configUpdatedAt)}</p>
           </div>
           <button className="admin-button primary" disabled={busy}>Save Config</button>
         </div>
@@ -281,83 +396,97 @@ export default function AdminClient() {
             </label>
           ))}
 
-          <label className="admin-field">
-            <span>Server posting</span>
-            <select
-              value={configDraft.serverPostEnabled}
-              onChange={event => setConfigDraft(current => ({
-                ...current,
-                serverPostEnabled: event.target.value as ConfigDraft["serverPostEnabled"]
-              }))}
-            >
-              <option value="">Leave local</option>
-              <option value="true">Enabled</option>
-              <option value="false">Disabled</option>
-            </select>
-          </label>
+          {boolFields.map(field => (
+            <label className="admin-field" key={field.key}>
+              <span>{field.label}</span>
+              <select
+                value={configDraft[field.key]}
+                onChange={event => setConfigDraft(current => ({
+                  ...current,
+                  [field.key]: event.target.value as ConfigDraft[ConfigBoolKey]
+                }))}
+              >
+                <option value="">Leave local</option>
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            </label>
+          ))}
         </div>
       </form>
+
+      <section className="admin-panel">
+        <div className="admin-section-head">
+          <div>
+            <h2>Upload</h2>
+            <p className="admin-muted">Manifest {updatedLabel(firmwareUpdatedAt)}</p>
+          </div>
+        </div>
+        <div className="artifact-grid">
+          {renderUpload("firmware", "Firmware")}
+          {renderUpload("spiffs", "SPIFFS")}
+        </div>
+      </section>
 
       <form className="admin-panel" onSubmit={saveFirmware}>
         <div className="admin-section-head">
           <div>
-            <h2>Firmware</h2>
-            <p className="admin-muted">Updated {updatedLabel(firmwareUpdatedAt)}</p>
+            <h2>Update Status</h2>
+            <p className="admin-muted">Station {updatedLabel(latest?.receivedAt)}</p>
           </div>
-          <button className="admin-button primary" disabled={busy}>Save Firmware</button>
+          <button className="admin-button primary" disabled={busy}>Save Flags</button>
         </div>
 
-        <div className="admin-grid">
+        <div className="artifact-grid">
+          {renderArtifactStatus("firmware", "Firmware", latest?.firmwareVersion)}
+          {renderArtifactStatus("spiffs", "SPIFFS", latest?.spiffsVersion)}
+        </div>
+
+        <div className="admin-grid top-gap">
           <label className="admin-check">
             <input
               type="checkbox"
-              checked={firmware.enabled}
-              onChange={event => setFirmware(current => ({ ...current, enabled: event.target.checked }))}
+              checked={firmware.firmware.enabled}
+              onChange={event => setArtifact("firmware", { enabled: event.target.checked })}
             />
-            <span>Enable remote update</span>
+            <span>Firmware update</span>
           </label>
           <label className="admin-field">
-            <span>Version</span>
+            <span>Firmware version</span>
             <input
-              value={firmware.version}
-              onChange={event => setFirmware(current => ({ ...current, version: event.target.value }))}
+              value={firmware.firmware.version}
+              onChange={event => setArtifact("firmware", { version: event.target.value })}
             />
           </label>
           <label className="admin-field wide">
-            <span>Binary URL</span>
-            <input
-              value={firmware.url}
-              onChange={event => setFirmware(current => ({ ...current, url: event.target.value }))}
-            />
-          </label>
-          <label className="admin-field wide">
-            <span>SHA-256</span>
-            <input
-              value={firmware.sha256}
-              onChange={event => setFirmware(current => ({ ...current, sha256: event.target.value }))}
-            />
-          </label>
-          <label className="admin-field">
-            <span>Size</span>
-            <div className="admin-input-row">
-              <input
-                type="number"
-                step="1"
-                value={firmware.size || ""}
-                onChange={event => setFirmware(current => ({
-                  ...current,
-                  size: Number(event.target.value || 0)
-                }))}
-              />
-              <b>bytes</b>
-            </div>
-          </label>
-          <label className="admin-field wide">
-            <span>Notes</span>
+            <span>Firmware notes</span>
             <textarea
-              rows={4}
-              value={firmware.notes}
-              onChange={event => setFirmware(current => ({ ...current, notes: event.target.value }))}
+              rows={3}
+              value={firmware.firmware.notes}
+              onChange={event => setArtifact("firmware", { notes: event.target.value })}
+            />
+          </label>
+          <label className="admin-check">
+            <input
+              type="checkbox"
+              checked={firmware.spiffs.enabled}
+              onChange={event => setArtifact("spiffs", { enabled: event.target.checked })}
+            />
+            <span>SPIFFS update</span>
+          </label>
+          <label className="admin-field">
+            <span>SPIFFS version</span>
+            <input
+              value={firmware.spiffs.version}
+              onChange={event => setArtifact("spiffs", { version: event.target.value })}
+            />
+          </label>
+          <label className="admin-field wide">
+            <span>SPIFFS notes</span>
+            <textarea
+              rows={3}
+              value={firmware.spiffs.notes}
+              onChange={event => setArtifact("spiffs", { notes: event.target.value })}
             />
           </label>
         </div>

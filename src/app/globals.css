@@ -64,6 +64,7 @@ main {
 
 .status-pill.online { color: var(--green); border-color: rgba(76, 175, 80, 0.35); }
 .status-pill.error  { color: var(--red);   border-color: rgba(239, 83, 80, 0.35); }
+.status-pill.waiting { color: var(--muted); }
 
 .admin-top-actions {
   display: flex;
@@ -344,6 +345,80 @@ h1 em {
   gap: 0.9rem;
 }
 
+.admin-grid.top-gap {
+  margin-top: 1rem;
+}
+
+.artifact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.artifact-card {
+  border: 1px solid var(--border);
+  background: #101010;
+  padding: 1rem;
+}
+
+.artifact-card h3 {
+  margin: 0 0 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.artifact-card .admin-field {
+  margin-bottom: 0.75rem;
+}
+
+.artifact-status-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.artifact-status {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.25rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.artifact-status.ok {
+  color: var(--green);
+  border-color: rgba(76, 175, 80, 0.35);
+}
+
+.artifact-status.warn {
+  color: #e6c463;
+  border-color: rgba(230, 196, 99, 0.35);
+}
+
+.artifact-meta {
+  display: grid;
+  grid-template-columns: 5.6rem 1fr;
+  gap: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.artifact-meta span {
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.artifact-meta b {
+  color: var(--text);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
 .admin-field,
 .admin-check {
   display: flex;
@@ -375,6 +450,10 @@ h1 em {
   font: inherit;
   min-height: 2.4rem;
   padding: 0.55rem 0.65rem;
+}
+
+.admin-field input[type="file"] {
+  padding-top: 0.48rem;
 }
 
 .admin-field textarea {
@@ -439,6 +518,7 @@ h1 em {
 @media (max-width: 760px) {
   .health-grid { grid-template-columns: repeat(2, 1fr); }
   .admin-grid { grid-template-columns: repeat(2, 1fr); }
+  .artifact-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {

@@ -11,6 +11,7 @@ export type DisplayReading = {
 export type WeatherStationTelemetry = {
   board?: string;
   firmwareVersion?: string;
+  spiffsVersion?: string;
   uptimeMs?: number;
   solarMode?: "unknown" | "dark" | "shadow" | "sun" | string;
   displaysForcedOff?: boolean;
@@ -28,6 +29,7 @@ export type WeatherStationTelemetry = {
     firmwareMessage?: string;
   };
   sensors?: Record<string, boolean>;
+  config?: StationRemoteConfig;
   displays?: DisplayReading[];
   receivedAt?: string;
 };
@@ -47,3 +49,4 @@ export function emptyTelemetry(): WeatherStationTelemetry {
     receivedAt: undefined
   };
 }
+import type { StationRemoteConfig } from "./management";
