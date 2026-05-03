@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { deriveActiveAlerts, deriveStationEvents, type EventSeverity } from "@/lib/events";
 import {
   emptyFirmwareManifest,
   type FirmwareArtifact,
@@ -35,6 +36,11 @@ type LatestResponse = {
   success: boolean;
   connected: boolean;
   telemetry: WeatherStationTelemetry;
+};
+
+type HistoryResponse = {
+  success: boolean;
+  history: WeatherStationTelemetry[];
 };
 
 const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; suffix: string }> = [
@@ -116,6 +122,24 @@ function shortHash(value: string) {
   return value ? `${value.slice(0, 12)}...${value.slice(-8)}` : "--";
 }
 
+function eventTime(value: string) {
+  return new Date(value).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function severityText(severity: EventSeverity) {
+  switch (severity) {
+    case "bad": return "Critical";
+    case "warn": return "Watch";
+    case "ok": return "Clear";
+    default: return "Info";
+  }
+}
+
 export default function AdminClient() {
   const [configured, setConfigured] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
@@ -125,20 +149,26 @@ export default function AdminClient() {
   const [firmware, setFirmware] = useState<FirmwareManifest>(emptyFirmwareManifest);
   const [firmwareUpdatedAt, setFirmwareUpdatedAt] = useState<string | null>(null);
   const [latest, setLatest] = useState<WeatherStationTelemetry | null>(null);
+  const [history, setHistory] = useState<WeatherStationTelemetry[]>([]);
   const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const alerts = useMemo(() => deriveActiveAlerts(latest, history), [latest, history]);
+  const events = useMemo(() => deriveStationEvents(history), [history]);
+  const activeAlertCount = alerts.filter(alert => alert.severity !== "ok").length;
 
   async function loadManagementData() {
-    const [configRes, firmwareRes, latestRes] = await Promise.all([
+    const [configRes, firmwareRes, latestRes, historyRes] = await Promise.all([
       fetch("/api/admin/station-config", { cache: "no-store" }),
       fetch("/api/admin/firmware", { cache: "no-store" }),
-      fetch("/api/latest", { cache: "no-store" })
+      fetch("/api/latest", { cache: "no-store" }),
+      fetch("/api/history?limit=10080", { cache: "no-store" })
     ]);
     if (!configRes.ok || !firmwareRes.ok) throw new Error("unauthorized");
     const configJson = await configRes.json() as ConfigResponse;
     const firmwareJson = await firmwareRes.json() as FirmwareResponse;
     const latestJson = latestRes.ok ? await latestRes.json() as LatestResponse : null;
+    const historyJson = historyRes.ok ? await historyRes.json() as HistoryResponse : null;
     const stationConfig = latestJson?.telemetry?.config;
 
     setConfigDraft(asDraft(hasConfigValues(stationConfig) ? { ...configJson.config, ...stationConfig } : configJson.config ?? {}));
@@ -146,6 +176,7 @@ export default function AdminClient() {
     setFirmware(firmwareJson.manifest ?? emptyFirmwareManifest);
     setFirmwareUpdatedAt(firmwareJson.updatedAt ?? null);
     setLatest(latestJson?.telemetry ?? null);
+    setHistory(historyJson?.history ?? []);
     setConnected(Boolean(latestJson?.connected));
   }
 
@@ -380,6 +411,49 @@ export default function AdminClient() {
           </button>
         </div>
       </div>
+
+      <section className="admin-panel">
+        <div className="admin-section-head">
+          <div>
+            <h2>Events & Alerts</h2>
+            <p className="admin-muted">Recent telemetry {history.length} samples · Last {updatedLabel(latest?.receivedAt)}</p>
+            <p className="admin-help">
+              Alerts and events are derived from station telemetry: offline gaps, low battery, sensor failures, post failures, solar changes, firmware changes, and fast pressure drops.
+            </p>
+          </div>
+          <span className={`status-pill ${activeAlertCount > 0 ? "error" : "online"}`}>
+            {activeAlertCount > 0 ? `${activeAlertCount} Alert${activeAlertCount === 1 ? "" : "s"}` : "Clear"}
+          </span>
+        </div>
+
+        <div className="alert-grid">
+          {alerts.map(alert => (
+            <article className={`alert-card ${alert.severity}`} key={alert.id}>
+              <span>{severityText(alert.severity)}</span>
+              <strong>{alert.title}</strong>
+              <p>{alert.detail}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="event-timeline" aria-label="Station event timeline">
+          {events.length === 0 ? (
+            <div className="event-empty">No timeline events detected in stored history yet.</div>
+          ) : events.map(event => (
+            <article className={`event-row ${event.severity}`} key={event.id}>
+              <div className="event-marker" />
+              <div className="event-body">
+                <div className="event-head">
+                  <span>{event.category}</span>
+                  <time dateTime={event.at}>{eventTime(event.at)}</time>
+                </div>
+                <strong>{event.title}</strong>
+                <p>{event.detail}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <form className="admin-panel" onSubmit={saveConfig}>
         <div className="admin-section-head">
