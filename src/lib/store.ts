@@ -12,7 +12,7 @@ const latestKey = "weatherstation:latest";
 const historyKey = "weatherstation:history";
 const remoteConfigKey = "weatherstation:remote-config";
 const firmwareManifestKey = "weatherstation:firmware-manifest";
-const HISTORY_CAP = 500;
+const HISTORY_CAP = 10080;
 
 type MemoryGlobal = typeof globalThis & {
   __weatherstationLatest?: WeatherStationTelemetry;

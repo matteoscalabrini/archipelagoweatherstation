@@ -363,6 +363,7 @@ export default function AdminClient() {
       <nav className="topbar">
         <a className="brand" href="/">Archipelago</a>
         <div className="admin-top-actions">
+          <a className="toplink" href="/history">History</a>
           <span className={`status-pill ${connected ? "online" : "waiting"}`}>
             {connected ? "Station" : "Waiting"}
           </span>
