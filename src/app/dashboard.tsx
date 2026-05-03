@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { WeatherStationTelemetry } from "@/lib/telemetry";
+import { Analytics } from "@vercel/analytics/next"
 
 type LatestResponse = {
   success: boolean;
