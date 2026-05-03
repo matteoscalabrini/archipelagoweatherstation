@@ -114,4 +114,4 @@ The ESP32 installs an update only when the manifest is enabled and the manifest 
 
 - Without Redis, the app still works in local development with in-memory storage.
 - On Vercel, use Redis/Upstash. Serverless memory is not persistent across invocations.
-- The UI intentionally matches the station web UI: black background, high contrast, 3x3 display tile layout.
+- The UI uses a light, high-contrast 3x3 display tile layout.

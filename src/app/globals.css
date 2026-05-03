@@ -1,17 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
-  color-scheme: dark;
-  --bg:      #0d0d0d;
-  --surface: #141414;
-  --raised:  #1c1c1c;
-  --border:  #232323;
-  --text:    #e2e2e2;
-  --muted:   #545454;
-  --faint:   #2a2a2a;
-  --gold:    #2d2dff;
-  --green:   #4caf50;
-  --red:     #ef5350;
+  color-scheme: light;
+  --bg:      #f6f8fb;
+  --surface: #ffffff;
+  --raised:  #eef3f8;
+  --input:   #fbfdff;
+  --border:  #d8e0ea;
+  --text:    #142033;
+  --muted:   #657287;
+  --faint:   #c5cfdd;
+  --gold:    #2563eb;
+  --green:   #16763a;
+  --red:     #c83f3f;
+  --warn:    #9a6700;
 }
 
 * { box-sizing: border-box; }
@@ -371,7 +373,7 @@ h1 em {
 
 .artifact-card {
   border: 1px solid var(--border);
-  background: #101010;
+  background: var(--raised);
   padding: 1rem;
   min-height: 100%;
   display: flex;
@@ -418,8 +420,8 @@ h1 em {
 }
 
 .artifact-status.warn {
-  color: #e6c463;
-  border-color: rgba(230, 196, 99, 0.35);
+  color: var(--warn);
+  border-color: rgba(154, 103, 0, 0.35);
 }
 
 .artifact-meta {
@@ -468,7 +470,7 @@ h1 em {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 2px;
-  background: #101010;
+  background: var(--input);
   color: var(--text);
   font: inherit;
   min-height: 2.4rem;
@@ -529,7 +531,7 @@ h1 em {
 
 .admin-button.primary {
   border-color: rgba(76, 175, 80, 0.42);
-  color: #d9f4db;
+  color: var(--green);
 }
 
 .admin-button.ghost {
