@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isDeviceAuthorized } from "@/lib/auth";
-import { saveLatestTelemetry } from "@/lib/store";
+import { sendActiveAlertNotifications } from "@/lib/notifications";
+import { getRecentTelemetry, saveLatestTelemetry } from "@/lib/store";
 import { isTelemetryPayload } from "@/lib/telemetry";
 
 export const runtime = "nodejs";
@@ -27,9 +28,12 @@ export async function POST(request: NextRequest) {
   };
 
   await saveLatestTelemetry(payload);
+  const history = await getRecentTelemetry(10080);
+  const notifications = await sendActiveAlertNotifications(payload, history);
 
   return NextResponse.json({
     success: true,
-    receivedAt: payload.receivedAt
+    receivedAt: payload.receivedAt,
+    notifications
   });
 }

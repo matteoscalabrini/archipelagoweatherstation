@@ -6,12 +6,23 @@ import type {
   FirmwareManifest
 } from "./management";
 import { emptyFirmwareManifest, sanitizeFirmwareManifest, sanitizeRemoteConfig } from "./management";
+import { defaultAlertRules, sanitizeAlertRules, type AlertRules, type AlertRulesRecord } from "./events";
+import {
+  defaultNotificationSettings,
+  sanitizeNotificationSettings,
+  type NotificationDeliveryState,
+  type NotificationSettings,
+  type NotificationSettingsRecord
+} from "./notification-settings";
 import type { WeatherStationTelemetry } from "./telemetry";
 
 const latestKey = "weatherstation:latest";
 const historyKey = "weatherstation:history";
 const remoteConfigKey = "weatherstation:remote-config";
 const firmwareManifestKey = "weatherstation:firmware-manifest";
+const alertRulesKey = "weatherstation:alert-rules";
+const notificationSettingsKey = "weatherstation:notification-settings";
+const notificationDeliveryKey = "weatherstation:notification-delivery";
 const HISTORY_CAP = 10080;
 
 type MemoryGlobal = typeof globalThis & {
@@ -19,6 +30,9 @@ type MemoryGlobal = typeof globalThis & {
   __weatherstationHistory?: WeatherStationTelemetry[];
   __weatherstationRemoteConfig?: RemoteConfigRecord;
   __weatherstationFirmwareManifest?: FirmwareManifestRecord;
+  __weatherstationAlertRules?: AlertRulesRecord;
+  __weatherstationNotificationSettings?: NotificationSettingsRecord;
+  __weatherstationNotificationDelivery?: NotificationDeliveryState;
 };
 
 function kvConfigured() {
@@ -112,5 +126,77 @@ export async function saveFirmwareManifest(manifest: FirmwareManifest): Promise<
     return record;
   }
   (globalThis as MemoryGlobal).__weatherstationFirmwareManifest = record;
+  return record;
+}
+
+export async function getAlertRules(): Promise<AlertRulesRecord> {
+  if (kvConfigured()) {
+    const record = await redisClient().get<AlertRulesRecord>(alertRulesKey);
+    return record ?
+      { rules: sanitizeAlertRules(record.rules), updatedAt: record.updatedAt ?? null } :
+      { rules: defaultAlertRules, updatedAt: null };
+  }
+  const record = (globalThis as MemoryGlobal).__weatherstationAlertRules;
+  return record ?
+    { rules: sanitizeAlertRules(record.rules), updatedAt: record.updatedAt ?? null } :
+    { rules: defaultAlertRules, updatedAt: null };
+}
+
+export async function saveAlertRules(rules: AlertRules): Promise<AlertRulesRecord> {
+  const record = { rules: sanitizeAlertRules(rules), updatedAt: new Date().toISOString() };
+  if (kvConfigured()) {
+    await redisClient().set(alertRulesKey, record);
+    return record;
+  }
+  (globalThis as MemoryGlobal).__weatherstationAlertRules = record;
+  return record;
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettingsRecord> {
+  if (kvConfigured()) {
+    const record = await redisClient().get<NotificationSettingsRecord>(notificationSettingsKey);
+    return record ?
+      { settings: sanitizeNotificationSettings(record.settings), updatedAt: record.updatedAt ?? null } :
+      { settings: defaultNotificationSettings, updatedAt: null };
+  }
+  const record = (globalThis as MemoryGlobal).__weatherstationNotificationSettings;
+  return record ?
+    { settings: sanitizeNotificationSettings(record.settings), updatedAt: record.updatedAt ?? null } :
+    { settings: defaultNotificationSettings, updatedAt: null };
+}
+
+export async function saveNotificationSettings(settings: NotificationSettings): Promise<NotificationSettingsRecord> {
+  const record = { settings: sanitizeNotificationSettings(settings), updatedAt: new Date().toISOString() };
+  if (kvConfigured()) {
+    await redisClient().set(notificationSettingsKey, record);
+    return record;
+  }
+  (globalThis as MemoryGlobal).__weatherstationNotificationSettings = record;
+  return record;
+}
+
+export async function getNotificationDeliveryState(): Promise<NotificationDeliveryState> {
+  if (kvConfigured()) {
+    const record = await redisClient().get<NotificationDeliveryState>(notificationDeliveryKey);
+    return record ?
+      { lastSentAtByAlertId: record.lastSentAtByAlertId ?? {}, updatedAt: record.updatedAt ?? null } :
+      { lastSentAtByAlertId: {}, updatedAt: null };
+  }
+  return (globalThis as MemoryGlobal).__weatherstationNotificationDelivery ?? {
+    lastSentAtByAlertId: {},
+    updatedAt: null
+  };
+}
+
+export async function saveNotificationDeliveryState(state: NotificationDeliveryState): Promise<NotificationDeliveryState> {
+  const record = {
+    lastSentAtByAlertId: state.lastSentAtByAlertId ?? {},
+    updatedAt: new Date().toISOString()
+  };
+  if (kvConfigured()) {
+    await redisClient().set(notificationDeliveryKey, record);
+    return record;
+  }
+  (globalThis as MemoryGlobal).__weatherstationNotificationDelivery = record;
   return record;
 }

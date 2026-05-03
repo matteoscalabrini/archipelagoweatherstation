@@ -1,13 +1,23 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { deriveActiveAlerts, deriveStationEvents, type EventSeverity } from "@/lib/events";
+import {
+  defaultAlertRules,
+  deriveActiveAlerts,
+  deriveStationEvents,
+  type AlertRules,
+  type EventSeverity
+} from "@/lib/events";
 import {
   emptyFirmwareManifest,
   type FirmwareArtifact,
   type FirmwareManifest,
   type StationRemoteConfig
 } from "@/lib/management";
+import {
+  defaultNotificationSettings,
+  type NotificationSettings
+} from "@/lib/notification-settings";
 import type { WeatherStationTelemetry } from "@/lib/telemetry";
 
 type ConfigNumberKey = keyof Omit<StationRemoteConfig, "serverPostEnabled" | "wifiApAlways">;
@@ -41,6 +51,18 @@ type LatestResponse = {
 type HistoryResponse = {
   success: boolean;
   history: WeatherStationTelemetry[];
+};
+
+type AlertRulesResponse = {
+  success: boolean;
+  rules: AlertRules;
+  updatedAt: string | null;
+};
+
+type NotificationSettingsResponse = {
+  success: boolean;
+  settings: NotificationSettings;
+  updatedAt: string | null;
 };
 
 const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; suffix: string }> = [
@@ -150,23 +172,31 @@ export default function AdminClient() {
   const [firmwareUpdatedAt, setFirmwareUpdatedAt] = useState<string | null>(null);
   const [latest, setLatest] = useState<WeatherStationTelemetry | null>(null);
   const [history, setHistory] = useState<WeatherStationTelemetry[]>([]);
+  const [alertRules, setAlertRules] = useState<AlertRules>(defaultAlertRules);
+  const [alertRulesUpdatedAt, setAlertRulesUpdatedAt] = useState<string | null>(null);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(defaultNotificationSettings);
+  const [notificationSettingsUpdatedAt, setNotificationSettingsUpdatedAt] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const alerts = useMemo(() => deriveActiveAlerts(latest, history), [latest, history]);
-  const events = useMemo(() => deriveStationEvents(history), [history]);
+  const alerts = useMemo(() => deriveActiveAlerts(latest, history, alertRules), [latest, history, alertRules]);
+  const events = useMemo(() => deriveStationEvents(history, alertRules), [history, alertRules]);
   const activeAlertCount = alerts.filter(alert => alert.severity !== "ok").length;
 
   async function loadManagementData() {
-    const [configRes, firmwareRes, latestRes, historyRes] = await Promise.all([
+    const [configRes, firmwareRes, alertRulesRes, notificationSettingsRes, latestRes, historyRes] = await Promise.all([
       fetch("/api/admin/station-config", { cache: "no-store" }),
       fetch("/api/admin/firmware", { cache: "no-store" }),
+      fetch("/api/admin/alert-rules", { cache: "no-store" }),
+      fetch("/api/admin/notification-settings", { cache: "no-store" }),
       fetch("/api/latest", { cache: "no-store" }),
       fetch("/api/history?limit=10080", { cache: "no-store" })
     ]);
-    if (!configRes.ok || !firmwareRes.ok) throw new Error("unauthorized");
+    if (!configRes.ok || !firmwareRes.ok || !alertRulesRes.ok || !notificationSettingsRes.ok) throw new Error("unauthorized");
     const configJson = await configRes.json() as ConfigResponse;
     const firmwareJson = await firmwareRes.json() as FirmwareResponse;
+    const alertRulesJson = await alertRulesRes.json() as AlertRulesResponse;
+    const notificationSettingsJson = await notificationSettingsRes.json() as NotificationSettingsResponse;
     const latestJson = latestRes.ok ? await latestRes.json() as LatestResponse : null;
     const historyJson = historyRes.ok ? await historyRes.json() as HistoryResponse : null;
     const stationConfig = latestJson?.telemetry?.config;
@@ -175,6 +205,10 @@ export default function AdminClient() {
     setConfigUpdatedAt(configJson.updatedAt ?? null);
     setFirmware(firmwareJson.manifest ?? emptyFirmwareManifest);
     setFirmwareUpdatedAt(firmwareJson.updatedAt ?? null);
+    setAlertRules(alertRulesJson.rules ?? defaultAlertRules);
+    setAlertRulesUpdatedAt(alertRulesJson.updatedAt ?? null);
+    setNotificationSettings(notificationSettingsJson.settings ?? defaultNotificationSettings);
+    setNotificationSettingsUpdatedAt(notificationSettingsJson.updatedAt ?? null);
     setLatest(latestJson?.telemetry ?? null);
     setHistory(historyJson?.history ?? []);
     setConnected(Boolean(latestJson?.connected));
@@ -252,6 +286,50 @@ export default function AdminClient() {
     }
   }
 
+  async function saveAlertRuleSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/alert-rules", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(alertRules)
+      });
+      if (!res.ok) throw new Error("save_failed");
+      const json = await res.json() as AlertRulesResponse;
+      setAlertRules(json.rules ?? defaultAlertRules);
+      setAlertRulesUpdatedAt(json.updatedAt ?? null);
+      setMessage("Alert rules saved");
+    } catch {
+      setMessage("Alert rules save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveNotificationDeliverySettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/notification-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notificationSettings)
+      });
+      if (!res.ok) throw new Error("save_failed");
+      const json = await res.json() as NotificationSettingsResponse;
+      setNotificationSettings(json.settings ?? defaultNotificationSettings);
+      setNotificationSettingsUpdatedAt(json.updatedAt ?? null);
+      setMessage("Notification settings saved");
+    } catch {
+      setMessage("Notification settings save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveFirmware(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -300,6 +378,14 @@ export default function AdminClient() {
       ...current,
       [type]: { ...current[type], ...patch }
     }));
+  }
+
+  function setAlertRule<K extends keyof AlertRules>(key: K, value: AlertRules[K]) {
+    setAlertRules(current => ({ ...current, [key]: value }));
+  }
+
+  function setNotificationSetting<K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) {
+    setNotificationSettings(current => ({ ...current, [key]: value }));
   }
 
   function renderUpload(type: "firmware" | "spiffs", label: string) {
@@ -453,6 +539,190 @@ export default function AdminClient() {
             </article>
           ))}
         </div>
+
+        <form className="alert-rule-form" onSubmit={saveAlertRuleSettings}>
+          <div className="admin-section-head">
+            <div>
+              <h2>Alert Rules</h2>
+              <p className="admin-muted">Saved {updatedLabel(alertRulesUpdatedAt)}</p>
+            </div>
+            <button className="admin-button primary" disabled={busy}>Save Rules</button>
+          </div>
+
+          <div className="admin-grid">
+            <label className="admin-field">
+              <span>Offline after</span>
+              <p className="admin-help field-help">Raise an offline alert when telemetry has been silent this long.</p>
+              <div className="admin-input-row">
+                <input
+                  min="1"
+                  max="1440"
+                  step="1"
+                  type="number"
+                  value={alertRules.offlineAfterMinutes}
+                  onChange={event => setAlertRule("offlineAfterMinutes", Number(event.target.value))}
+                />
+                <b>min</b>
+              </div>
+            </label>
+            <label className="admin-field">
+              <span>Battery watch</span>
+              <p className="admin-help field-help">Warn when estimated battery percentage drops below this value.</p>
+              <div className="admin-input-row">
+                <input
+                  min="0"
+                  max="100"
+                  step="1"
+                  type="number"
+                  value={alertRules.batteryWarnPercent}
+                  onChange={event => setAlertRule("batteryWarnPercent", Number(event.target.value))}
+                />
+                <b>%</b>
+              </div>
+            </label>
+            <label className="admin-field">
+              <span>Battery critical</span>
+              <p className="admin-help field-help">Raise a critical alert below this battery percentage.</p>
+              <div className="admin-input-row">
+                <input
+                  min="0"
+                  max="100"
+                  step="1"
+                  type="number"
+                  value={alertRules.batteryBadPercent}
+                  onChange={event => setAlertRule("batteryBadPercent", Number(event.target.value))}
+                />
+                <b>%</b>
+              </div>
+            </label>
+            <label className="admin-field">
+              <span>Pressure drop</span>
+              <p className="admin-help field-help">Warn when pressure falls by this much over roughly three hours.</p>
+              <div className="admin-input-row">
+                <input
+                  min="0.1"
+                  max="50"
+                  step="0.1"
+                  type="number"
+                  value={alertRules.pressureDropHpa}
+                  onChange={event => setAlertRule("pressureDropHpa", Number(event.target.value))}
+                />
+                <b>hPa</b>
+              </div>
+            </label>
+            <label className="admin-field">
+              <span>Timeline rows</span>
+              <p className="admin-help field-help">Limit how many detected events appear in the admin timeline.</p>
+              <div className="admin-input-row">
+                <input
+                  min="1"
+                  max="100"
+                  step="1"
+                  type="number"
+                  value={alertRules.eventLimit}
+                  onChange={event => setAlertRule("eventLimit", Number(event.target.value))}
+                />
+                <b>rows</b>
+              </div>
+            </label>
+          </div>
+
+          <div className="admin-grid top-gap">
+            <label className="admin-check">
+              <input
+                type="checkbox"
+                checked={alertRules.batteryAlerts}
+                onChange={event => setAlertRule("batteryAlerts", event.target.checked)}
+              />
+              <span>Battery alerts</span>
+              <p className="admin-help field-help">Use battery percentage or voltage-derived percentage when available.</p>
+            </label>
+            <label className="admin-check">
+              <input
+                type="checkbox"
+                checked={alertRules.sensorAlerts}
+                onChange={event => setAlertRule("sensorAlerts", event.target.checked)}
+              />
+              <span>Sensor alerts</span>
+              <p className="admin-help field-help">Flag sensors that report offline and log recoveries.</p>
+            </label>
+            <label className="admin-check">
+              <input
+                type="checkbox"
+                checked={alertRules.postFailureAlerts}
+                onChange={event => setAlertRule("postFailureAlerts", event.target.checked)}
+              />
+              <span>Post alerts</span>
+              <p className="admin-help field-help">Watch non-200 station post codes and recovery events.</p>
+            </label>
+            <label className="admin-check">
+              <input
+                type="checkbox"
+                checked={alertRules.pressureAlerts}
+                onChange={event => setAlertRule("pressureAlerts", event.target.checked)}
+              />
+              <span>Pressure alerts</span>
+              <p className="admin-help field-help">Detect sharp pressure falls from the stored telemetry history.</p>
+            </label>
+          </div>
+        </form>
+
+        <form className="alert-rule-form" onSubmit={saveNotificationDeliverySettings}>
+          <div className="admin-section-head">
+            <div>
+              <h2>Alert Delivery</h2>
+              <p className="admin-muted">Saved {updatedLabel(notificationSettingsUpdatedAt)}</p>
+              <p className="admin-help">
+                When enabled, active alert payloads are posted to the webhook after each station ingest, with a per-alert cooldown.
+              </p>
+            </div>
+            <button className="admin-button primary" disabled={busy}>Save Delivery</button>
+          </div>
+
+          <div className="admin-grid">
+            <label className="admin-check">
+              <input
+                type="checkbox"
+                checked={notificationSettings.enabled}
+                onChange={event => setNotificationSetting("enabled", event.target.checked)}
+              />
+              <span>Webhook delivery</span>
+              <p className="admin-help field-help">Send active alert notifications to the configured webhook.</p>
+            </label>
+            <label className="admin-field">
+              <span>Station name</span>
+              <p className="admin-help field-help">Shown in the notification text.</p>
+              <input
+                value={notificationSettings.stationName}
+                onChange={event => setNotificationSetting("stationName", event.target.value)}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Cooldown</span>
+              <p className="admin-help field-help">Minimum delay before the same active alert is sent again.</p>
+              <div className="admin-input-row">
+                <input
+                  min="1"
+                  max="1440"
+                  step="1"
+                  type="number"
+                  value={notificationSettings.cooldownMinutes}
+                  onChange={event => setNotificationSetting("cooldownMinutes", Number(event.target.value))}
+                />
+                <b>min</b>
+              </div>
+            </label>
+            <label className="admin-field wide">
+              <span>Webhook URL</span>
+              <p className="admin-help field-help">Accepts generic JSON webhooks, Slack incoming webhooks, and Discord webhooks.</p>
+              <input
+                type="url"
+                value={notificationSettings.webhookUrl}
+                onChange={event => setNotificationSetting("webhookUrl", event.target.value)}
+              />
+            </label>
+          </div>
+        </form>
       </section>
 
       <form className="admin-panel" onSubmit={saveConfig}>

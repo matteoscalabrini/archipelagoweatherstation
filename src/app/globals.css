@@ -789,6 +789,12 @@ h1 em {
   padding: 1rem;
 }
 
+.alert-rule-form {
+  border-top: 1px solid var(--border);
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
+}
+
 .admin-section-head {
   display: flex;
   align-items: flex-start;
