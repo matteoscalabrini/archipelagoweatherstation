@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { deriveWeatherInsights } from "@/lib/insights";
 import type { DisplayReading, WeatherStationTelemetry } from "@/lib/telemetry";
 
 type HistoryResponse = {
@@ -274,6 +275,7 @@ export default function HistoryClient() {
   const windowHistory = useMemo(() => filterHistory(history, range), [history, range]);
   const latest = history[0];
   const selectedStats = stats(points);
+  const insights = useMemo(() => deriveWeatherInsights(latest, windowHistory), [latest, windowHistory]);
   const activeDisplays = latest?.displays?.filter(display => display.online).length ?? 0;
   const totalDisplays = latest?.displays?.length ?? 0;
   const sensorEntries = latest?.sensors ? Object.entries(latest.sensors) : [];
@@ -381,7 +383,15 @@ export default function HistoryClient() {
               <strong>{latest?.wifi?.sta ? "Station" : latest?.wifi?.ap ? "Access Point" : "Offline"}</strong>
             </div>
           </div>
-          <p className="history-report">{buildReport(selected, points, windowHistory.length)}</p>
+          <div className="derived-list">
+            {insights.values.slice(0, 4).map(item => (
+              <div className={item.tone ?? ""} key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+          <p className="history-report">{insights.summary} {buildReport(selected, points, windowHistory.length)}</p>
         </aside>
       </section>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { deriveWeatherInsights } from "@/lib/insights";
 import type { WeatherStationTelemetry } from "@/lib/telemetry";
 
 type LatestResponse = {
@@ -150,6 +151,7 @@ export default function Dashboard() {
 
   // History is stored newest-first; reverse for chronological left-to-right plotting.
   const orderedHistory = useMemo(() => [...history].reverse(), [history]);
+  const insights = useMemo(() => deriveWeatherInsights(telemetry, history), [telemetry, history]);
 
   const sensorEntries = telemetry?.sensors ? Object.entries(telemetry.sensors) : [];
 
@@ -177,6 +179,19 @@ export default function Dashboard() {
         <span>Active &nbsp;<strong>{displays.filter(d => d?.online).length} / {displays.length || "--"}</strong></span>
         <span>Samples &nbsp;<strong>{history.length}</strong></span>
       </div>
+
+      <section className="insights" aria-label="Weather intelligence">
+        <div className="health-title">Weather Intelligence</div>
+        <div className="insight-strip">
+          {insights.values.map(item => (
+            <article className={`insight-tile ${item.tone ?? ""}`} key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </div>
+        <p className="insight-summary">{insights.summary}</p>
+      </section>
 
       <section className="grid" aria-label="Sensor readings">
         {Array.from({ length: 9 }).map((_, i) => {

@@ -286,6 +286,68 @@ h1 em {
 .sensor-chip.ok  { color: var(--text); }
 .sensor-chip.bad { opacity: 0.6; }
 
+/* ── INSIGHTS ── */
+
+.insights {
+  margin-bottom: 1.5rem;
+}
+
+.insight-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.insight-tile {
+  background: var(--surface);
+  min-width: 0;
+  padding: 0.9rem 1rem;
+}
+
+.insight-tile span,
+.derived-list span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+}
+
+.insight-tile strong,
+.derived-list strong {
+  color: var(--text);
+  display: block;
+  font-size: 1rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.insight-tile.ok strong,
+.derived-list .ok strong {
+  color: var(--green);
+}
+
+.insight-tile.warn strong,
+.derived-list .warn strong {
+  color: var(--warn);
+}
+
+.insight-tile.bad strong,
+.derived-list .bad strong {
+  color: var(--red);
+}
+
+.insight-summary {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0.75rem 0 0;
+}
+
 /* ── HISTORY ── */
 
 .history-page {
@@ -479,6 +541,21 @@ h1 em {
   font-size: 0.86rem;
   font-weight: 400;
   text-align: right;
+}
+
+.derived-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-top: 1rem;
+}
+
+.derived-list div {
+  background: var(--surface);
+  min-width: 0;
+  padding: 0.75rem;
 }
 
 .history-report {
@@ -818,6 +895,7 @@ h1 em {
 
 @media (max-width: 760px) {
   .health-grid { grid-template-columns: repeat(2, 1fr); }
+  .insight-strip { grid-template-columns: repeat(3, 1fr); }
   .history-board { grid-template-columns: 1fr; }
   .history-stat-grid { grid-template-columns: repeat(2, 1fr); }
   .series-summary-grid { grid-template-columns: repeat(2, 1fr); }
@@ -836,6 +914,8 @@ h1 em {
   }
   .range-control { width: 100%; }
   .range-control button { min-width: 0; }
+  .insight-strip,
+  .derived-list { grid-template-columns: repeat(2, 1fr); }
   .series-tabs { max-height: 9.5rem; }
   .history-stat-grid,
   .series-summary-grid { grid-template-columns: 1fr; }
@@ -851,4 +931,6 @@ h1 em {
 @media (max-width: 380px) {
   .grid { grid-template-columns: 1fr; }
   .health-grid { grid-template-columns: 1fr; }
+  .insight-strip,
+  .derived-list { grid-template-columns: 1fr; }
 }

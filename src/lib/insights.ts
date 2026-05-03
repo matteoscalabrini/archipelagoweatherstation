@@ -1,0 +1,281 @@
+import type { DisplayReading, WeatherStationTelemetry } from "./telemetry";
+
+type Reading = {
+  label: string;
+  unit: string;
+  value: number;
+};
+
+export type InsightValue = {
+  label: string;
+  value: string;
+  tone?: "ok" | "warn" | "bad";
+};
+
+export type WeatherInsights = {
+  temperatureC: number | null;
+  humidityPct: number | null;
+  pressureHpa: number | null;
+  batteryVoltage: number | null;
+  batteryPercent: number | null;
+  dewPointC: number | null;
+  heatIndexC: number | null;
+  pressureDeltaHpa: number | null;
+  sampleCadenceMinutes: number | null;
+  sunSharePct: number | null;
+  summary: string;
+  values: InsightValue[];
+};
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function readings(snapshot: WeatherStationTelemetry | null | undefined): Reading[] {
+  const result: Reading[] = [];
+  snapshot?.displays?.forEach((display: DisplayReading) => {
+    const primary = toNumber(display.primary);
+    if (primary !== null) {
+      result.push({
+        label: display.label ?? "",
+        unit: display.primaryUnit ?? "",
+        value: primary
+      });
+    }
+
+    const secondary = toNumber(display.secondary);
+    if (secondary !== null) {
+      result.push({
+        label: `${display.label ?? ""} ${display.secondaryLabel ?? ""}`.trim(),
+        unit: display.secondaryUnit ?? "",
+        value: secondary
+      });
+    }
+  });
+  return result;
+}
+
+function labelIncludes(reading: Reading, words: string[]) {
+  const label = reading.label.toLowerCase();
+  return words.some(word => label.includes(word));
+}
+
+function unitIncludes(reading: Reading, words: string[]) {
+  const unit = reading.unit.toLowerCase();
+  return words.some(word => unit.includes(word));
+}
+
+function firstReading(snapshot: WeatherStationTelemetry | null | undefined, predicate: (reading: Reading) => boolean) {
+  return readings(snapshot).find(predicate);
+}
+
+function temperatureC(snapshot: WeatherStationTelemetry | null | undefined) {
+  const reading = firstReading(snapshot, item =>
+    labelIncludes(item, ["temp", "temperature"]) || unitIncludes(item, ["°c", "c", "°f", "f"])
+  );
+  if (!reading) return null;
+  const unit = reading.unit.toLowerCase();
+  if (unit.includes("f") && !unit.includes("c")) return (reading.value - 32) * 5 / 9;
+  return reading.value;
+}
+
+function humidityPct(snapshot: WeatherStationTelemetry | null | undefined) {
+  const reading = firstReading(snapshot, item =>
+    labelIncludes(item, ["humid", "rh"]) || unitIncludes(item, ["%"])
+  );
+  if (!reading) return null;
+  return Math.max(0, Math.min(100, reading.value));
+}
+
+function pressureHpa(snapshot: WeatherStationTelemetry | null | undefined) {
+  const reading = firstReading(snapshot, item =>
+    labelIncludes(item, ["press", "baro"]) || unitIncludes(item, ["hpa", "mbar", "kpa", "pa", "inhg"])
+  );
+  if (!reading) return null;
+  const unit = reading.unit.toLowerCase();
+  if (unit.includes("inhg")) return reading.value * 33.8639;
+  if (unit.includes("kpa")) return reading.value * 10;
+  if (unit === "pa") return reading.value / 100;
+  return reading.value;
+}
+
+function batteryVoltage(snapshot: WeatherStationTelemetry | null | undefined) {
+  const reading = firstReading(snapshot, item =>
+    labelIncludes(item, ["batt", "battery", "vbat"]) && unitIncludes(item, ["v"])
+  );
+  return reading?.value ?? null;
+}
+
+function batteryPercent(snapshot: WeatherStationTelemetry | null | undefined, voltage: number | null) {
+  const direct = firstReading(snapshot, item =>
+    labelIncludes(item, ["batt", "battery"]) && unitIncludes(item, ["%"])
+  );
+  if (direct) return Math.max(0, Math.min(100, direct.value));
+
+  const empty = snapshot?.config?.batteryPercentEmptyVoltageV;
+  const full = snapshot?.config?.batteryPercentFullVoltageV;
+  if (voltage === null || empty === undefined || full === undefined || full <= empty) return null;
+  return Math.max(0, Math.min(100, ((voltage - empty) / (full - empty)) * 100));
+}
+
+function dewPointC(tempC: number | null, humidity: number | null) {
+  if (tempC === null || humidity === null || humidity <= 0) return null;
+  const a = 17.625;
+  const b = 243.04;
+  const gamma = Math.log(humidity / 100) + (a * tempC) / (b + tempC);
+  return (b * gamma) / (a - gamma);
+}
+
+function heatIndexC(tempC: number | null, humidity: number | null) {
+  if (tempC === null || humidity === null || tempC < 26.7 || humidity < 40) return null;
+  const t = tempC * 9 / 5 + 32;
+  const r = humidity;
+  const hi =
+    -42.379 +
+    2.04901523 * t +
+    10.14333127 * r -
+    0.22475541 * t * r -
+    0.00683783 * t * t -
+    0.05481717 * r * r +
+    0.00122874 * t * t * r +
+    0.00085282 * t * r * r -
+    0.00000199 * t * t * r * r;
+  return (hi - 32) * 5 / 9;
+}
+
+function pressureDeltaHpa(history: WeatherStationTelemetry[]) {
+  const ordered = [...history].reverse();
+  const points = ordered
+    .map(snapshot => ({
+      t: snapshot.receivedAt ? new Date(snapshot.receivedAt).getTime() : NaN,
+      v: pressureHpa(snapshot)
+    }))
+    .filter((point): point is { t: number; v: number } => Number.isFinite(point.t) && point.v !== null);
+
+  if (points.length < 2) return null;
+  const last = points[points.length - 1];
+  const target = last.t - 3 * 60 * 60 * 1000;
+  let earlier = points[0];
+  for (const point of points) {
+    if (point.t <= target) earlier = point;
+    else break;
+  }
+  if (earlier === last) return null;
+  return last.v - earlier.v;
+}
+
+function sampleCadenceMinutes(history: WeatherStationTelemetry[]) {
+  const times = history
+    .map(snapshot => snapshot.receivedAt ? new Date(snapshot.receivedAt).getTime() : NaN)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b)
+    .slice(-12);
+  if (times.length < 2) return null;
+
+  const gaps = times.slice(1).map((time, index) => time - times[index]).filter(gap => gap > 0);
+  if (gaps.length === 0) return null;
+  return gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length / 60000;
+}
+
+function sunSharePct(history: WeatherStationTelemetry[]) {
+  const withMode = history.filter(snapshot => snapshot.solarMode);
+  if (withMode.length === 0) return null;
+  const sun = withMode.filter(snapshot => snapshot.solarMode?.toLowerCase() === "sun").length;
+  return sun / withMode.length * 100;
+}
+
+function formatC(value: number | null) {
+  return value === null ? "--" : `${value.toFixed(1)} °C`;
+}
+
+function formatPct(value: number | null) {
+  return value === null ? "--" : `${Math.round(value)}%`;
+}
+
+function formatPressureDelta(value: number | null) {
+  if (value === null) return "--";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)} hPa`;
+}
+
+function formatCadence(value: number | null) {
+  if (value === null) return "--";
+  if (value < 1) return `${Math.round(value * 60)}s`;
+  return `${value.toFixed(value >= 10 ? 0 : 1)}m`;
+}
+
+function pressureTone(delta: number | null): InsightValue["tone"] {
+  if (delta === null) return undefined;
+  if (delta > 1.5) return "ok";
+  if (delta < -1.5) return "warn";
+  return undefined;
+}
+
+function batteryTone(percent: number | null): InsightValue["tone"] {
+  if (percent === null) return undefined;
+  if (percent < 20) return "bad";
+  if (percent < 45) return "warn";
+  return "ok";
+}
+
+function buildSummary(insights: Omit<WeatherInsights, "summary" | "values">) {
+  const parts: string[] = [];
+  if (insights.dewPointC !== null && insights.temperatureC !== null) {
+    const spread = insights.temperatureC - insights.dewPointC;
+    parts.push(spread < 3 ? "Air is close to saturation" : spread < 8 ? "Humidity is noticeable" : "Air has comfortable drying room");
+  }
+  if (insights.pressureDeltaHpa !== null) {
+    parts.push(
+      insights.pressureDeltaHpa > 1.5 ? "pressure is rising" :
+      insights.pressureDeltaHpa < -1.5 ? "pressure is falling" :
+      "pressure is steady"
+    );
+  }
+  if (insights.batteryPercent !== null) {
+    parts.push(insights.batteryPercent < 25 ? "battery needs attention" : "battery looks healthy");
+  }
+  return parts.length > 0 ? `${parts.join(", ")}.` : "Waiting for temperature, humidity, pressure, or battery signals to build a richer report.";
+}
+
+export function deriveWeatherInsights(latest: WeatherStationTelemetry | null | undefined, history: WeatherStationTelemetry[] = []): WeatherInsights {
+  const temp = temperatureC(latest);
+  const humidity = humidityPct(latest);
+  const pressure = pressureHpa(latest);
+  const voltage = batteryVoltage(latest);
+  const battery = batteryPercent(latest, voltage);
+  const dewPoint = dewPointC(temp, humidity);
+  const heatIndex = heatIndexC(temp, humidity);
+  const pressureDelta = pressureDeltaHpa(history);
+  const cadence = sampleCadenceMinutes(history);
+  const sunShare = sunSharePct(history);
+  const base = {
+    temperatureC: temp,
+    humidityPct: humidity,
+    pressureHpa: pressure,
+    batteryVoltage: voltage,
+    batteryPercent: battery,
+    dewPointC: dewPoint,
+    heatIndexC: heatIndex,
+    pressureDeltaHpa: pressureDelta,
+    sampleCadenceMinutes: cadence,
+    sunSharePct: sunShare
+  };
+
+  return {
+    ...base,
+    summary: buildSummary(base),
+    values: [
+      { label: "Dew Point", value: formatC(dewPoint) },
+      { label: "Heat Index", value: heatIndex === null ? "Inactive" : formatC(heatIndex), tone: heatIndex !== null && heatIndex > 32 ? "warn" : undefined },
+      { label: "Pressure 3H", value: formatPressureDelta(pressureDelta), tone: pressureTone(pressureDelta) },
+      { label: "Battery", value: battery !== null ? formatPct(battery) : voltage !== null ? `${voltage.toFixed(2)} V` : "--", tone: batteryTone(battery) },
+      { label: "Cadence", value: formatCadence(cadence) },
+      { label: "Sun Share", value: formatPct(sunShare) }
+    ]
+  };
+}
