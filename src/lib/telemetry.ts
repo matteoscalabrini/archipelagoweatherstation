@@ -26,8 +26,11 @@ export type WeatherStationTelemetry = {
     lastPostCode?: number;
     lastPostMessage?: string;
     lastRemoteConfigPullMs?: number;
+    remoteConfigHttpCode?: number;
     remoteConfigMessage?: string;
     lastFirmwareCheckMs?: number;
+    firmwareHttpCode?: number;
+    otaHttpCode?: number;
     firmwareMessage?: string;
   };
   sensors?: Record<string, boolean>;

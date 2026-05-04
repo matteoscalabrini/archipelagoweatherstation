@@ -182,9 +182,21 @@ function pendingBoolState(current: boolean | undefined, desired: boolean | undef
 
 function artifactStatus(artifact: FirmwareArtifact, currentVersion: string | undefined) {
   if (!artifact.enabled || !artifact.version) return { text: "Disabled", tone: "muted" };
-  if (currentVersion && currentVersion === artifact.version) return { text: "Installed", tone: "ok" };
+  if (currentVersion && currentVersion === artifact.version) return { text: "Version match", tone: "muted" };
   if (currentVersion) return { text: "Pending", tone: "warn" };
   return { text: "Waiting", tone: "muted" };
+}
+
+function artifactDelivery(artifact: FirmwareArtifact, currentVersion: string | undefined) {
+  if (!artifact.enabled) return "Paused";
+  if (!artifact.version) return "Missing target";
+  if (currentVersion && currentVersion === artifact.version) return "No update offered";
+  if (currentVersion) return "Offered on next firmware check";
+  return "Waiting for telemetry";
+}
+
+function httpCodeLabel(code: number | undefined) {
+  return typeof code === "number" && code !== 0 ? String(code) : "--";
 }
 
 function shortHash(value: string) {
@@ -510,6 +522,7 @@ export default function AdminClient() {
         <div className="artifact-meta">
           <span>Target</span><b>{artifact.version || "--"}</b>
           <span>Station</span><b>{currentVersion || "--"}</b>
+          <span>Delivery</span><b>{artifactDelivery(artifact, currentVersion)}</b>
           <span>Uploaded</span><b>{updatedLabel(artifact.uploadedAt)}</b>
           <span>Size</span><b>{artifact.size ? `${artifact.size} bytes` : "--"}</b>
           <span>SHA-256</span><b>{shortHash(artifact.sha256)}</b>
@@ -904,9 +917,11 @@ export default function AdminClient() {
         <div className="admin-section-head">
           <div>
             <h2>Update Status</h2>
-            <p className="admin-muted">Station {updatedLabel(latest?.receivedAt)}</p>
+            <p className="admin-muted">
+              Station {updatedLabel(latest?.receivedAt)} · Firmware state {latest?.wifi?.firmwareMessage || "--"} · Manifest HTTP {httpCodeLabel(latest?.wifi?.firmwareHttpCode)} · OTA HTTP {httpCodeLabel(latest?.wifi?.otaHttpCode)}
+            </p>
             <p className="admin-help">
-              Target is the uploaded manifest version. Station is the last version reported by telemetry. Pending means the station has not reported the target yet.
+              The station downloads only when the target version differs from the version reported by telemetry. Version match means no update is offered.
             </p>
           </div>
           <button className="admin-button primary" disabled={busy}>Save Flags</button>
