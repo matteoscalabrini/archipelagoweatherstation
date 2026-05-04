@@ -241,7 +241,7 @@ export default function Dashboard() {
           <div className="health-cell">
             <div className="health-label">Network</div>
             <div className="health-value">
-              {telemetry?.wifi?.sta ? "Station" : telemetry?.wifi?.ap ? "Access Point" : "Offline"}
+              {telemetry?.wifi?.sta ? "Station" : telemetry?.wifi?.recoveryAp ? "Recovery AP" : telemetry?.wifi?.ap ? "Access Point" : "Offline"}
               {telemetry?.wifi?.ip && <span className="health-sub"> · {telemetry.wifi.ip}</span>}
             </div>
           </div>

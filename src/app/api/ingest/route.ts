@@ -2,9 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { isDeviceAuthorized } from "@/lib/auth";
 import { sendActiveAlertNotifications } from "@/lib/notifications";
 import { getRecentTelemetry, saveLatestTelemetry } from "@/lib/store";
-import { isTelemetryPayload } from "@/lib/telemetry";
+import { isTelemetryPayload, type WeatherStationTelemetry } from "@/lib/telemetry";
 
 export const runtime = "nodejs";
+
+function normalizeReceivedTelemetry(body: WeatherStationTelemetry): WeatherStationTelemetry {
+  return {
+    ...body,
+    wifi: {
+      ...body.wifi,
+      lastPostCode: 200,
+      lastPostMessage: "post_received"
+    },
+    receivedAt: new Date().toISOString()
+  };
+}
 
 export async function POST(request: NextRequest) {
   if (!isDeviceAuthorized(request)) {
@@ -22,10 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "invalid_payload" }, { status: 400 });
   }
 
-  const payload = {
-    ...body,
-    receivedAt: new Date().toISOString()
-  };
+  const payload = normalizeReceivedTelemetry(body);
 
   await saveLatestTelemetry(payload);
   const history = await getRecentTelemetry(10080);

@@ -107,6 +107,7 @@ function postOk(snapshot: WeatherStationTelemetry) {
 
 function networkLabel(snapshot: WeatherStationTelemetry) {
   if (snapshot.wifi?.sta) return "Station";
+  if (snapshot.wifi?.recoveryAp) return "Recovery AP";
   if (snapshot.wifi?.ap) return "Access Point";
   return "Offline";
 }

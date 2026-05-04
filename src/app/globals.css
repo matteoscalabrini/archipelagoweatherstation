@@ -980,12 +980,6 @@ h1 em {
   padding: 0.55rem 0.65rem;
 }
 
-.admin-field input,
-.admin-field select,
-.admin-input-row {
-  margin-top: auto;
-}
-
 .admin-field input[type="file"] {
   padding-top: 0.48rem;
 }

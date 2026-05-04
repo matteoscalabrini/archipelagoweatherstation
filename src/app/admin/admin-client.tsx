@@ -126,12 +126,20 @@ function buildConfigPayload(draft: ConfigDraft) {
   const payload: Record<string, number | boolean> = {};
   for (const field of configFields) {
     const raw = draft[field.key]?.trim() ?? "";
-    if (raw !== "") payload[field.key] = Number(raw);
+    const value = parseConfigNumber(raw);
+    if (value !== undefined) payload[field.key] = value;
   }
   for (const field of boolFields) {
     if (draft[field.key] !== "") payload[field.key] = draft[field.key] === "true";
   }
   return payload;
+}
+
+function parseConfigNumber(raw: string) {
+  const normalized = raw.trim().replace(",", ".");
+  if (normalized === "") return undefined;
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : undefined;
 }
 
 function formatConfigNumber(value: number | undefined, suffix: string) {
@@ -145,10 +153,7 @@ function formatConfigBool(value: boolean | undefined) {
 }
 
 function draftNumberValue(draft: ConfigDraft, key: ConfigNumberKey) {
-  const raw = draft[key]?.trim() ?? "";
-  if (raw === "") return undefined;
-  const value = Number(raw);
-  return Number.isFinite(value) ? value : undefined;
+  return parseConfigNumber(draft[key] ?? "");
 }
 
 function stationNumberValue(config: StationRemoteConfig | undefined, key: ConfigNumberKey) {

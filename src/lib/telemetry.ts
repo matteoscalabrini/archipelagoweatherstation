@@ -19,6 +19,8 @@ export type WeatherStationTelemetry = {
     enabled?: boolean;
     ap?: boolean;
     sta?: boolean;
+    recoveryAp?: boolean;
+    recoveryApRemainingMs?: number;
     ip?: string;
     apIp?: string;
     lastPostCode?: number;
