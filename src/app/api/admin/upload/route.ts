@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
   if (!type || !(file instanceof File) || file.size <= 0) {
     return NextResponse.json({ success: false, error: "missing_upload" }, { status: 400 });
   }
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!blobToken) {
     return NextResponse.json({ success: false, error: "blob_token_not_configured" }, { status: 500 });
   }
 
@@ -59,7 +60,8 @@ export async function POST(request: NextRequest) {
       access: "public",
       addRandomSuffix: false,
       contentType: "application/octet-stream",
-      multipart: true
+      multipart: true,
+      token: blobToken
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "blob_upload_failed";
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (previousUrl && previousUrl !== blob.url) {
-    await del(previousUrl).catch(() => undefined);
+    await del(previousUrl, { token: blobToken }).catch(() => undefined);
   }
 
   const manifest = {

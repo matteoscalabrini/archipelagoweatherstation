@@ -406,8 +406,12 @@ export default function AdminClient() {
       const form = new FormData(formElement);
       form.set("type", type);
       const res = await fetch("/api/admin/upload", { method: "POST", body: form });
-      const json = await res.json() as FirmwareResponse & { error?: string };
-      if (!res.ok) throw new Error(json.error || "upload_failed");
+      const json = await res.json() as FirmwareResponse & { error?: string; detail?: string };
+      if (!res.ok) {
+        const reason = json.detail ? `${json.error || "upload_failed"}: ${json.detail}` :
+          (json.error || "upload_failed");
+        throw new Error(reason);
+      }
       setFirmware(json.manifest ?? emptyFirmwareManifest);
       setFirmwareUpdatedAt(json.updatedAt ?? null);
       const artifact = json.manifest?.[type];
