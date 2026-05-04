@@ -56,7 +56,6 @@ export async function GET(request: NextRequest) {
   const headers = new Headers();
   headers.set("Cache-Control", "no-store");
   headers.set("Content-Type", result.blob.contentType || "application/octet-stream");
-  headers.set("Content-Length", String(result.blob.size));
   headers.set("Content-Disposition", `attachment; filename="${safeDownloadName(artifact.filename, `${type}.bin`)}"`);
   headers.set("X-Content-Type-Options", "nosniff");
   if (result.blob.etag) headers.set("ETag", result.blob.etag);

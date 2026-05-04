@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
   const current = await getFirmwareManifest();
   const previousUrl = current.manifest[type].url;
   const previousPathname = current.manifest[type].pathname;
+  const useMultipart = file.size >= 8 * 1024 * 1024;
 
   let blob;
   try {
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       access: "private",
       addRandomSuffix: false,
       contentType: "application/octet-stream",
-      multipart: true,
+      multipart: useMultipart,
       token: blobToken
     });
   } catch (error) {
