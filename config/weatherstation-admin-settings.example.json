@@ -4,5 +4,8 @@
   "postToken": "copy WEATHER_STATION_API_KEY from .env.local or Vercel env",
   "serverPostSunMs": 600000,
   "serverPostShadowMs": 600000,
-  "serverPostDarkMs": 1800000
+  "serverPostDarkMs": 1800000,
+  "batteryLockoutEnterVoltageV": 11.5,
+  "batteryLockoutResumeVoltageV": 12.8,
+  "batteryLockoutWakeMs": 3600000
 }

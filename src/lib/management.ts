@@ -12,6 +12,9 @@ export type StationRemoteConfig = {
   serverPostEnabled?: boolean;
   batteryPercentEmptyVoltageV?: number;
   batteryPercentFullVoltageV?: number;
+  batteryLockoutEnterVoltageV?: number;
+  batteryLockoutResumeVoltageV?: number;
+  batteryLockoutWakeMs?: number;
   remoteConfigPullMs?: number;
   remoteFirmwareCheckMs?: number;
   wifiApAlways?: boolean;
@@ -74,6 +77,9 @@ const numberFields: Record<NumericConfigField, { min: number; max: number; integ
   serverPostDarkMs: { min: 60 * 1000, max: 7 * 24 * 60 * 60 * 1000, integer: true },
   batteryPercentEmptyVoltageV: { min: 0, max: 80 },
   batteryPercentFullVoltageV: { min: 0, max: 80 },
+  batteryLockoutEnterVoltageV: { min: 0, max: 80 },
+  batteryLockoutResumeVoltageV: { min: 0, max: 80 },
+  batteryLockoutWakeMs: { min: 60 * 1000, max: 14 * 24 * 60 * 60 * 1000, integer: true },
   remoteConfigPullMs: { min: 60 * 1000, max: 24 * 60 * 60 * 1000, integer: true },
   remoteFirmwareCheckMs: { min: 5 * 60 * 1000, max: 7 * 24 * 60 * 60 * 1000, integer: true }
 };

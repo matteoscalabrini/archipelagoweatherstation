@@ -96,7 +96,7 @@ That file is ignored by git because it contains the shared secret.
 
 `/admin` stores remote config and update manifests in Redis/Upstash, with in-memory fallback for local development. Uploaded binaries are stored in Vercel Blob:
 
-- Remote config: station runtime values, seeded from the latest station telemetry when available.
+- Remote config: station runtime values, including solar policy, posting intervals, battery percentage bounds, and battery lockout thresholds, seeded from the latest station telemetry when available.
 - Firmware upload: stores the newest `firmware.bin`, computes SHA-256/size, updates the manifest, and deletes the previous firmware blob after the new upload succeeds.
 - SPIFFS upload: stores the newest SPIFFS image, computes SHA-256/size, updates the manifest, and deletes the previous SPIFFS blob after the new upload succeeds.
 - Update status: compares the target versions with the latest `firmwareVersion` and `spiffsVersion` reported by the station.

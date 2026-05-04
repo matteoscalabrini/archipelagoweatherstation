@@ -78,6 +78,9 @@ const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; s
   { key: "serverPostDarkMs", label: "Post interval in dark", step: "1000", suffix: "ms" },
   { key: "batteryPercentEmptyVoltageV", label: "Battery empty voltage", step: "0.1", suffix: "V" },
   { key: "batteryPercentFullVoltageV", label: "Battery full voltage", step: "0.1", suffix: "V" },
+  { key: "batteryLockoutEnterVoltageV", label: "Battery lockout enter", step: "0.01", suffix: "V" },
+  { key: "batteryLockoutResumeVoltageV", label: "Battery lockout resume", step: "0.01", suffix: "V" },
+  { key: "batteryLockoutWakeMs", label: "Battery lockout wake", step: "1000", suffix: "ms" },
   { key: "remoteConfigPullMs", label: "Remote config pull", step: "1000", suffix: "ms" },
   { key: "remoteFirmwareCheckMs", label: "Firmware check", step: "1000", suffix: "ms" }
 ];
