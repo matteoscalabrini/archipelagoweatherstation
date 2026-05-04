@@ -984,6 +984,41 @@ h1 em {
   min-width: 3rem;
 }
 
+.config-state {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.65rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.config-state span {
+  color: var(--muted);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.config-state b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.config-pending {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.config-pending.ok {
+  color: var(--green);
+}
+
+.config-pending.pending {
+  color: var(--warn);
+}
+
 .admin-check {
   border: 1px solid var(--border);
   padding: 0.7rem;

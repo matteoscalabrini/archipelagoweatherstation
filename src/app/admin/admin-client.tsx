@@ -103,10 +103,6 @@ const emptyConfigDraft: ConfigDraft = {
   wifiApAlways: ""
 };
 
-function hasConfigValues(config: StationRemoteConfig | undefined) {
-  return Boolean(config && Object.keys(config).length > 0);
-}
-
 function asDraft(config: StationRemoteConfig): ConfigDraft {
   const draft: ConfigDraft = {
     serverPostEnabled: config.serverPostEnabled === undefined ? "" : String(config.serverPostEnabled) as "true" | "false",
@@ -134,6 +130,47 @@ function buildConfigPayload(draft: ConfigDraft) {
     if (draft[field.key] !== "") payload[field.key] = draft[field.key] === "true";
   }
   return payload;
+}
+
+function formatConfigNumber(value: number | undefined, suffix: string) {
+  if (value === undefined || !Number.isFinite(value)) return "--";
+  return `${value}${suffix ? ` ${suffix}` : ""}`;
+}
+
+function formatConfigBool(value: boolean | undefined) {
+  if (value === undefined) return "--";
+  return value ? "Enabled" : "Disabled";
+}
+
+function draftNumberValue(draft: ConfigDraft, key: ConfigNumberKey) {
+  const raw = draft[key]?.trim() ?? "";
+  if (raw === "") return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function stationNumberValue(config: StationRemoteConfig | undefined, key: ConfigNumberKey) {
+  const value = config?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function draftBoolValue(draft: ConfigDraft, key: ConfigBoolKey) {
+  if (draft[key] === "") return undefined;
+  return draft[key] === "true";
+}
+
+function pendingNumberState(current: number | undefined, desired: number | undefined, suffix: string) {
+  if (desired === undefined) return { text: "No remote override", tone: "waiting" };
+  if (current === undefined) return { text: `Will apply ${formatConfigNumber(desired, suffix)}`, tone: "pending" };
+  if (current === desired) return { text: "Already applied", tone: "ok" };
+  return { text: `Will apply ${formatConfigNumber(desired, suffix)}`, tone: "pending" };
+}
+
+function pendingBoolState(current: boolean | undefined, desired: boolean | undefined) {
+  if (desired === undefined) return { text: "No remote override", tone: "waiting" };
+  if (current === undefined) return { text: `Will apply ${formatConfigBool(desired)}`, tone: "pending" };
+  if (current === desired) return { text: "Already applied", tone: "ok" };
+  return { text: `Will apply ${formatConfigBool(desired)}`, tone: "pending" };
 }
 
 function artifactStatus(artifact: FirmwareArtifact, currentVersion: string | undefined) {
@@ -202,9 +239,7 @@ export default function AdminClient() {
     const notificationSettingsJson = await notificationSettingsRes.json() as NotificationSettingsResponse;
     const latestJson = latestRes.ok ? await latestRes.json() as LatestResponse : null;
     const historyJson = historyRes.ok ? await historyRes.json() as HistoryResponse : null;
-    const stationConfig = latestJson?.telemetry?.config;
-
-    setConfigDraft(asDraft(hasConfigValues(stationConfig) ? { ...configJson.config, ...stationConfig } : configJson.config ?? {}));
+    setConfigDraft(asDraft(configJson.config ?? {}));
     setConfigUpdatedAt(configJson.updatedAt ?? null);
     setFirmware(firmwareJson.manifest ?? emptyFirmwareManifest);
     setFirmwareUpdatedAt(firmwareJson.updatedAt ?? null);
@@ -478,6 +513,8 @@ export default function AdminClient() {
     );
   }
 
+  const stationConfig = latest?.config;
+
   return (
     <main className="admin-page">
       <nav className="topbar">
@@ -734,49 +771,69 @@ export default function AdminClient() {
             <h2>Remote Config</h2>
             <p className="admin-muted">Station {updatedLabel(latest?.receivedAt)} · Saved {updatedLabel(configUpdatedAt)}</p>
             <p className="admin-help">
-              Values are filled from the latest station report when available. Saving writes the desired remote config; the station applies it on its next config pull.
+              Inputs are desired remote values. Empty fields leave the station local; current station values and pending changes are shown under each field.
             </p>
           </div>
           <button className="admin-button primary" disabled={busy}>Save Config</button>
         </div>
 
         <div className="admin-grid">
-          {configFields.map(field => (
-            <label className="admin-field" key={field.key}>
-              <span>{field.label}</span>
-              <p className="admin-help field-help">Leave unchanged only when you want to keep this current value.</p>
-              <div className="admin-input-row">
-                <input
-                  type="number"
-                  step={field.step}
-                  value={configDraft[field.key] ?? ""}
+          {configFields.map(field => {
+            const currentValue = stationNumberValue(stationConfig, field.key);
+            const desiredValue = draftNumberValue(configDraft, field.key);
+            const state = pendingNumberState(currentValue, desiredValue, field.suffix);
+            return (
+              <label className="admin-field" key={field.key}>
+                <span>{field.label}</span>
+                <div className="config-state">
+                  <span>Current</span><b>{formatConfigNumber(currentValue, field.suffix)}</b>
+                  <span>Desired</span><b>{desiredValue === undefined ? "Leave local" : formatConfigNumber(desiredValue, field.suffix)}</b>
+                </div>
+                <p className={`config-pending ${state.tone}`}>{state.text}</p>
+                <div className="admin-input-row">
+                  <input
+                    type="number"
+                    step={field.step}
+                    placeholder={currentValue === undefined ? "" : String(currentValue)}
+                    value={configDraft[field.key] ?? ""}
+                    onChange={event => setConfigDraft(current => ({
+                      ...current,
+                      [field.key]: event.target.value
+                    }))}
+                  />
+                  <b>{field.suffix}</b>
+                </div>
+              </label>
+            );
+          })}
+
+          {boolFields.map(field => {
+            const currentValue = stationConfig?.[field.key];
+            const desiredValue = draftBoolValue(configDraft, field.key);
+            const state = pendingBoolState(currentValue, desiredValue);
+            return (
+              <label className="admin-field" key={field.key}>
+                <span>{field.label}</span>
+                <p className="admin-help field-help">{field.help}</p>
+                <div className="config-state">
+                  <span>Current</span><b>{formatConfigBool(currentValue)}</b>
+                  <span>Desired</span><b>{desiredValue === undefined ? "Leave local" : formatConfigBool(desiredValue)}</b>
+                </div>
+                <p className={`config-pending ${state.tone}`}>{state.text}</p>
+                <select
+                  value={configDraft[field.key]}
                   onChange={event => setConfigDraft(current => ({
                     ...current,
-                    [field.key]: event.target.value
+                    [field.key]: event.target.value as ConfigDraft[ConfigBoolKey]
                   }))}
-                />
-                <b>{field.suffix}</b>
-              </div>
-            </label>
-          ))}
-
-          {boolFields.map(field => (
-            <label className="admin-field" key={field.key}>
-              <span>{field.label}</span>
-              <p className="admin-help field-help">{field.help} Choose Leave local to stop overriding this setting remotely.</p>
-              <select
-                value={configDraft[field.key]}
-                onChange={event => setConfigDraft(current => ({
-                  ...current,
-                  [field.key]: event.target.value as ConfigDraft[ConfigBoolKey]
-                }))}
-              >
-                <option value="">Leave local</option>
-                <option value="true">Enabled</option>
-                <option value="false">Disabled</option>
-              </select>
-            </label>
-          ))}
+                >
+                  <option value="">Leave local</option>
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </label>
+            );
+          })}
         </div>
       </form>
 
