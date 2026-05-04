@@ -23,6 +23,8 @@ The station also polls authenticated device endpoints:
 ```text
 GET /api/device/config
 GET /api/device/firmware?version=<current-firmware-version>
+GET /api/device/artifact?type=firmware
+GET /api/device/artifact?type=spiffs
 Authorization: Bearer <WEATHER_STATION_API_KEY>
 ```
 
@@ -94,9 +96,9 @@ That file is ignored by git because it contains the shared secret.
 
 ## Remote Management
 
-`/admin` stores remote config and update manifests in Redis/Upstash, with in-memory fallback for local development. Uploaded binaries are stored in Vercel Blob:
+`/admin` stores remote config and update manifests in Redis/Upstash, with in-memory fallback for local development. Uploaded binaries are stored as private Vercel Blob objects and streamed to stations through `/api/device/artifact`; artifact downloads accept either the station bearer token or the short-lived signed URL returned by `/api/device/firmware`:
 
-- Remote config: station runtime values, including solar policy, posting intervals, battery percentage bounds, and battery lockout thresholds, seeded from the latest station telemetry when available.
+- Remote config: desired station runtime values, including solar policy, posting intervals, battery percentage bounds, and battery lockout thresholds.
 - Firmware upload: stores the newest `firmware.bin`, computes SHA-256/size, updates the manifest, and deletes the previous firmware blob after the new upload succeeds.
 - SPIFFS upload: stores the newest SPIFFS image, computes SHA-256/size, updates the manifest, and deletes the previous SPIFFS blob after the new upload succeeds.
 - Update status: compares the target versions with the latest `firmwareVersion` and `spiffsVersion` reported by the station.

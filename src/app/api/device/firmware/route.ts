@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isDeviceAuthorized } from "@/lib/auth";
+import { createDeviceArtifactToken, isDeviceAuthorized } from "@/lib/auth";
 import { getFirmwareManifest } from "@/lib/store";
 
 export const runtime = "nodejs";
+
+function artifactUrl(request: NextRequest, type: "firmware" | "spiffs") {
+  const url = new URL("/api/device/artifact", request.nextUrl.origin);
+  url.searchParams.set("type", type);
+  url.searchParams.set("downloadToken", createDeviceArtifactToken(type));
+  return url.toString();
+}
 
 export async function GET(request: NextRequest) {
   if (!isDeviceAuthorized(request)) {
@@ -13,12 +20,16 @@ export async function GET(request: NextRequest) {
   const currentSpiffs = request.nextUrl.searchParams.get("spiffs") ?? "";
   const record = await getFirmwareManifest();
   const { firmware, spiffs } = record.manifest;
+  const firmwareBlobAvailable = Boolean(firmware.pathname || firmware.url);
+  const spiffsBlobAvailable = Boolean(spiffs.pathname || spiffs.url);
   const firmwareUpdateAvailable = Boolean(
-    firmware.enabled && firmware.version && firmware.url && firmware.version !== current
+    firmware.enabled && firmware.version && firmwareBlobAvailable && firmware.version !== current
   );
   const spiffsUpdateAvailable = Boolean(
-    spiffs.enabled && spiffs.version && spiffs.url && spiffs.version !== currentSpiffs
+    spiffs.enabled && spiffs.version && spiffsBlobAvailable && spiffs.version !== currentSpiffs
   );
+  const firmwareUrl = firmwareUpdateAvailable ? artifactUrl(request, "firmware") : "";
+  const spiffsUrl = spiffsUpdateAvailable ? artifactUrl(request, "spiffs") : "";
 
   return NextResponse.json(
     {
@@ -30,12 +41,12 @@ export async function GET(request: NextRequest) {
       spiffsUpdateAvailable,
       firmwareEnabled: firmware.enabled,
       firmwareVersion: firmware.version,
-      firmwareUrl: firmware.url,
+      firmwareUrl,
       firmwareSha256: firmware.sha256,
       firmwareSize: firmware.size,
       spiffsEnabled: spiffs.enabled,
       spiffsVersion: spiffs.version,
-      spiffsUrl: spiffs.url,
+      spiffsUrl,
       spiffsSha256: spiffs.sha256,
       spiffsSize: spiffs.size,
       updatedAt: record.updatedAt

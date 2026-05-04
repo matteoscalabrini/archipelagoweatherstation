@@ -53,11 +53,12 @@ export async function POST(request: NextRequest) {
 
   const current = await getFirmwareManifest();
   const previousUrl = current.manifest[type].url;
+  const previousPathname = current.manifest[type].pathname;
 
   let blob;
   try {
     blob = await put(pathname, buffer, {
-      access: "public",
+      access: "private",
       addRandomSuffix: false,
       contentType: "application/octet-stream",
       multipart: true,
@@ -68,10 +69,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "blob_upload_failed", detail: message }, { status: 500 });
   }
 
-  if (previousUrl && previousUrl !== blob.url) {
-    await del(previousUrl, { token: blobToken }).catch(() => undefined);
-  }
-
   const manifest = {
     ...current.manifest,
     [type]: {
@@ -79,6 +76,7 @@ export async function POST(request: NextRequest) {
       enabled: true,
       version,
       url: blob.url,
+      pathname: blob.pathname,
       sha256,
       size: file.size,
       uploadedAt,
@@ -88,5 +86,9 @@ export async function POST(request: NextRequest) {
   };
 
   const record = await saveFirmwareManifest(manifest);
+  const previousBlob = previousPathname || previousUrl;
+  if (previousBlob && previousBlob !== blob.pathname && previousBlob !== blob.url) {
+    await del(previousBlob, { token: blobToken }).catch(() => undefined);
+  }
   return NextResponse.json({ success: true, ...record });
 }

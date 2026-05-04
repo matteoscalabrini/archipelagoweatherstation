@@ -3,6 +3,10 @@ import type { NextRequest, NextResponse } from "next/server";
 
 const adminCookieName = "weatherstation_admin";
 const sessionMaxAgeSeconds = 7 * 24 * 60 * 60;
+const artifactDownloadMaxAgeMs = 60 * 60 * 1000;
+const artifactDownloadClockSkewMs = 5 * 60 * 1000;
+
+type DeviceArtifactType = "firmware" | "spiffs";
 
 function stationApiKey() {
   return process.env.WEATHER_STATION_API_KEY ?? "";
@@ -23,8 +27,12 @@ function safeEqual(a: string, b: string) {
   return crypto.timingSafeEqual(left, right);
 }
 
+function hmac(value: string, secret: string) {
+  return crypto.createHmac("sha256", secret).update(value).digest("hex");
+}
+
 function sign(value: string) {
-  return crypto.createHmac("sha256", sessionSecret()).update(value).digest("hex");
+  return hmac(value, sessionSecret());
 }
 
 export function adminPasswordConfigured() {
@@ -80,4 +88,33 @@ export function isDeviceAuthorized(request: NextRequest) {
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const apiKey = request.headers.get("x-api-key") ?? "";
   return safeEqual(bearer, expected) || safeEqual(apiKey, expected);
+}
+
+export function createDeviceArtifactToken(type: DeviceArtifactType) {
+  const secret = stationApiKey();
+  if (!secret) return "";
+  const expiresAt = Date.now() + artifactDownloadMaxAgeMs;
+  const payload = `artifact.v1.${type}.${expiresAt}`;
+  return `${payload}.${hmac(payload, secret)}`;
+}
+
+export function isDeviceArtifactRequestAuthorized(request: NextRequest, type: DeviceArtifactType) {
+  if (isDeviceAuthorized(request)) return true;
+
+  const secret = stationApiKey();
+  const token = request.nextUrl.searchParams.get("downloadToken") ?? "";
+  if (!secret || !token) return false;
+
+  const parts = token.split(".");
+  if (parts.length !== 5 || parts[0] !== "artifact" || parts[1] !== "v1" || parts[2] !== type) {
+    return false;
+  }
+
+  const expiresAt = Number(parts[3]);
+  if (!Number.isFinite(expiresAt)) return false;
+  const now = Date.now();
+  if (expiresAt < now || expiresAt - now > artifactDownloadMaxAgeMs + artifactDownloadClockSkewMs) return false;
+
+  const payload = parts.slice(0, 4).join(".");
+  return safeEqual(parts[4], hmac(payload, secret));
 }

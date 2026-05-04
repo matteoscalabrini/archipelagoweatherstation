@@ -24,6 +24,7 @@ export type FirmwareArtifact = {
   enabled: boolean;
   version: string;
   url: string;
+  pathname: string;
   sha256: string;
   size: number;
   uploadedAt: string | null;
@@ -50,6 +51,7 @@ export const emptyFirmwareArtifact: FirmwareArtifact = {
   enabled: false,
   version: "",
   url: "",
+  pathname: "",
   sha256: "",
   size: 0,
   uploadedAt: null,
@@ -147,6 +149,7 @@ function sanitizeFirmwareArtifact(value: unknown): FirmwareArtifact {
     enabled,
     version: cleanString(source.version, 48),
     url: cleanString(source.url, 400),
+    pathname: cleanString(source.pathname, 400),
     sha256: /^[0-9a-f]{64}$/.test(sha256) ? sha256 : "",
     size,
     uploadedAt: cleanString(source.uploadedAt, 40) || null,
