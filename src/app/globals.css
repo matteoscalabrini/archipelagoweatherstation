@@ -910,6 +910,12 @@ h1 em {
   font-size: 0.78rem;
 }
 
+.artifact-meta.compact {
+  border: 1px solid var(--border);
+  background: var(--raised);
+  padding: 0.65rem;
+}
+
 .artifact-meta span {
   color: var(--muted);
   letter-spacing: 0.04em;
@@ -920,6 +926,24 @@ h1 em {
   color: var(--text);
   font-weight: 400;
   overflow-wrap: anywhere;
+}
+
+.upload-feedback {
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 0.65rem;
+}
+
+.upload-feedback.ok {
+  border-color: rgba(76, 175, 80, 0.35);
+  color: var(--green);
+}
+
+.upload-feedback.bad {
+  border-color: rgba(239, 83, 80, 0.35);
+  color: var(--red);
 }
 
 .admin-field,

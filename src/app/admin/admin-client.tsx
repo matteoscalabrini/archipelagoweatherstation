@@ -23,6 +23,8 @@ import type { WeatherStationTelemetry } from "@/lib/telemetry";
 type ConfigNumberKey = keyof Omit<StationRemoteConfig, "serverPostEnabled" | "wifiApAlways">;
 type ConfigBoolKey = "serverPostEnabled" | "wifiApAlways";
 type ConfigDraft = Partial<Record<ConfigNumberKey, string>> & Record<ConfigBoolKey, "" | "true" | "false">;
+type ArtifactType = "firmware" | "spiffs";
+type UploadStatus = Partial<Record<ArtifactType, { tone: "waiting" | "ok" | "bad"; text: string }>>;
 
 type SessionResponse = {
   success: boolean;
@@ -218,6 +220,7 @@ export default function AdminClient() {
   const [notificationSettingsUpdatedAt, setNotificationSettingsUpdatedAt] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState("");
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>({});
   const [busy, setBusy] = useState(false);
   const alerts = useMemo(() => deriveActiveAlerts(latest, history, alertRules), [latest, history, alertRules]);
   const events = useMemo(() => deriveStationEvents(history, alertRules), [history, alertRules]);
@@ -390,28 +393,49 @@ export default function AdminClient() {
     }
   }
 
-  async function uploadArtifact(type: "firmware" | "spiffs", event: FormEvent<HTMLFormElement>) {
+  async function uploadArtifact(type: ArtifactType, event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy(true);
     setMessage("");
+    setUploadStatus(current => ({
+      ...current,
+      [type]: { tone: "waiting", text: `Uploading ${type === "firmware" ? "firmware" : "SPIFFS"}...` }
+    }));
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(formElement);
       form.set("type", type);
       const res = await fetch("/api/admin/upload", { method: "POST", body: form });
-      if (!res.ok) throw new Error("upload_failed");
-      const json = await res.json() as FirmwareResponse;
+      const json = await res.json() as FirmwareResponse & { error?: string };
+      if (!res.ok) throw new Error(json.error || "upload_failed");
       setFirmware(json.manifest ?? emptyFirmwareManifest);
       setFirmwareUpdatedAt(json.updatedAt ?? null);
-      event.currentTarget.reset();
-      setMessage(`${type === "firmware" ? "Firmware" : "SPIFFS"} uploaded`);
-    } catch {
-      setMessage(`${type === "firmware" ? "Firmware" : "SPIFFS"} upload failed`);
+      const artifact = json.manifest?.[type];
+      formElement.reset();
+      const label = type === "firmware" ? "Firmware" : "SPIFFS";
+      const detail = artifact?.filename ?
+        `${label} uploaded: ${artifact.filename} (${artifact.size} bytes)` :
+        `${label} uploaded`;
+      setUploadStatus(current => ({
+        ...current,
+        [type]: { tone: "ok", text: detail }
+      }));
+      setMessage(detail);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "upload_failed";
+      const label = type === "firmware" ? "Firmware" : "SPIFFS";
+      const text = `${label} upload failed: ${reason}`;
+      setUploadStatus(current => ({
+        ...current,
+        [type]: { tone: "bad", text }
+      }));
+      setMessage(text);
     } finally {
       setBusy(false);
     }
   }
 
-  function setArtifact(type: "firmware" | "spiffs", patch: Partial<FirmwareArtifact>) {
+  function setArtifact(type: ArtifactType, patch: Partial<FirmwareArtifact>) {
     setFirmware(current => ({
       ...current,
       [type]: { ...current[type], ...patch }
@@ -426,17 +450,31 @@ export default function AdminClient() {
     setNotificationSettings(current => ({ ...current, [key]: value }));
   }
 
-  function renderUpload(type: "firmware" | "spiffs", label: string) {
+  function renderUpload(type: ArtifactType, label: string) {
     const help = type === "firmware"
       ? "Upload the PlatformIO firmware.bin. A successful upload replaces the previous firmware blob."
       : "Upload the PlatformIO SPIFFS image. A successful upload replaces the previous SPIFFS blob.";
+    const status = uploadStatus[type];
+    const artifact = firmware[type];
     return (
       <form className="artifact-card" onSubmit={event => uploadArtifact(type, event)}>
-        <h3>{label}</h3>
+        <div className="artifact-status-head">
+          <h3>{label}</h3>
+          <span className={`artifact-status ${artifact.enabled ? "ok" : ""}`}>
+            {artifact.enabled ? "Uploaded" : "Empty"}
+          </span>
+        </div>
         <p className="admin-help">{help}</p>
+        {status && <div className={`upload-feedback ${status.tone}`}>{status.text}</div>}
+        <div className="artifact-meta compact">
+          <span>Current</span><b>{artifact.filename || "--"}</b>
+          <span>Version</span><b>{artifact.version || "--"}</b>
+          <span>Size</span><b>{artifact.size ? `${artifact.size} bytes` : "--"}</b>
+          <span>SHA-256</span><b>{shortHash(artifact.sha256)}</b>
+        </div>
         <label className="admin-field">
           <span>Version</span>
-          <input name="version" />
+          <input name="version" placeholder={artifact.version || new Date().toISOString()} />
         </label>
         <label className="admin-field">
           <span>File</span>
@@ -451,7 +489,7 @@ export default function AdminClient() {
     );
   }
 
-  function renderArtifactStatus(type: "firmware" | "spiffs", label: string, currentVersion: string | undefined) {
+  function renderArtifactStatus(type: ArtifactType, label: string, currentVersion: string | undefined) {
     const artifact = firmware[type];
     const status = artifactStatus(artifact, currentVersion);
     return (
