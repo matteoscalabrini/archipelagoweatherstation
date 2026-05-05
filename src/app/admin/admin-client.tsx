@@ -388,6 +388,22 @@ export default function AdminClient() {
     }
   }
 
+  async function clearEventTimeline() {
+    if (!window.confirm("Clear all timeline events from stored history?")) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/events", { method: "DELETE" });
+      if (!res.ok) throw new Error("clear_failed");
+      await loadManagementData();
+      setMessage("Timeline cleared");
+    } catch {
+      setMessage("Timeline clear failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveFirmware(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -607,9 +623,14 @@ export default function AdminClient() {
               Alerts and events are derived from station telemetry: offline gaps, low battery, sensor failures, post failures, solar changes, firmware changes, and fast pressure drops.
             </p>
           </div>
-          <span className={`status-pill ${activeAlertCount > 0 ? "error" : "online"}`}>
-            {activeAlertCount > 0 ? `${activeAlertCount} Alert${activeAlertCount === 1 ? "" : "s"}` : "Clear"}
-          </span>
+          <div className="admin-section-actions">
+            <span className={`status-pill ${activeAlertCount > 0 ? "error" : "online"}`}>
+              {activeAlertCount > 0 ? `${activeAlertCount} Alert${activeAlertCount === 1 ? "" : "s"}` : "Clear"}
+            </span>
+            <button className="admin-button ghost" type="button" onClick={clearEventTimeline} disabled={busy}>
+              Clear Timeline
+            </button>
+          </div>
         </div>
 
         <div className="alert-grid">

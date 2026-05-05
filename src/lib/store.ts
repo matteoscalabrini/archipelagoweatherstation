@@ -85,6 +85,14 @@ export async function getRecentTelemetry(limit = 200): Promise<WeatherStationTel
   return (globalThis as MemoryGlobal).__weatherstationHistory?.slice(0, cap) ?? [];
 }
 
+export async function clearTelemetryHistory() {
+  if (kvConfigured()) {
+    await redisClient().del(historyKey);
+    return;
+  }
+  (globalThis as MemoryGlobal).__weatherstationHistory = [];
+}
+
 export async function getRemoteConfig(): Promise<RemoteConfigRecord> {
   if (kvConfigured()) {
     const record = await redisClient().get<RemoteConfigRecord>(remoteConfigKey);

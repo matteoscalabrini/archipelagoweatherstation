@@ -721,6 +721,8 @@ h1 em {
 .event-timeline {
   border: 1px solid var(--border);
   margin-top: 1rem;
+  max-height: 28rem;
+  overflow-y: auto;
 }
 
 .event-row {
@@ -801,6 +803,12 @@ h1 em {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.2rem;
+}
+
+.admin-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
 }
 
 .admin-section-head h2 {
@@ -1114,6 +1122,9 @@ h1 em {
   .admin-section-head {
     align-items: stretch;
     flex-direction: column;
+  }
+  .admin-section-actions {
+    justify-content: space-between;
   }
   .admin-grid { grid-template-columns: 1fr; }
   .admin-field.wide { grid-column: auto; }
