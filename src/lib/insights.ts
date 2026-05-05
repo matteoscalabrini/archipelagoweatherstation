@@ -6,6 +6,11 @@ type Reading = {
   value: number;
 };
 
+type BatterySocPoint = {
+  voltagePerCell: number;
+  percent: number;
+};
+
 export type InsightValue = {
   label: string;
   value: string;
@@ -106,21 +111,73 @@ function pressureHpa(snapshot: WeatherStationTelemetry | null | undefined) {
 
 function batteryVoltage(snapshot: WeatherStationTelemetry | null | undefined) {
   const reading = firstReading(snapshot, item =>
-    labelIncludes(item, ["batt", "battery", "vbat"]) && unitIncludes(item, ["v"])
+    labelIncludes(item, ["bat", "batt", "battery", "vbat"]) && unitIncludes(item, ["v"])
   );
   return reading?.value ?? null;
 }
 
+const liIonSocCurve4s: BatterySocPoint[] = [
+  { voltagePerCell: 3.00, percent: 0 },
+  { voltagePerCell: 3.30, percent: 5 },
+  { voltagePerCell: 3.35, percent: 10 },
+  { voltagePerCell: 3.42, percent: 15 },
+  { voltagePerCell: 3.48, percent: 20 },
+  { voltagePerCell: 3.53, percent: 25 },
+  { voltagePerCell: 3.56, percent: 30 },
+  { voltagePerCell: 3.59, percent: 35 },
+  { voltagePerCell: 3.61, percent: 40 },
+  { voltagePerCell: 3.64, percent: 45 },
+  { voltagePerCell: 3.68, percent: 50 },
+  { voltagePerCell: 3.73, percent: 55 },
+  { voltagePerCell: 3.78, percent: 60 },
+  { voltagePerCell: 3.83, percent: 65 },
+  { voltagePerCell: 3.87, percent: 70 },
+  { voltagePerCell: 3.91, percent: 75 },
+  { voltagePerCell: 3.95, percent: 80 },
+  { voltagePerCell: 4.01, percent: 85 },
+  { voltagePerCell: 4.06, percent: 90 },
+  { voltagePerCell: 4.11, percent: 95 },
+  { voltagePerCell: 4.20, percent: 100 }
+];
+
+function inferSeriesCells(fullVoltage: number) {
+  const inferred = Math.round(fullVoltage / 4.2);
+  return Math.max(1, Math.min(8, inferred));
+}
+
+function curveBatteryPercentFromVoltage(voltage: number, seriesCells: number) {
+  const vCell = voltage / seriesCells;
+  const first = liIonSocCurve4s[0];
+  const last = liIonSocCurve4s[liIonSocCurve4s.length - 1];
+  if (vCell <= first.voltagePerCell) return first.percent;
+  if (vCell >= last.voltagePerCell) return last.percent;
+
+  for (let i = 1; i < liIonSocCurve4s.length; i += 1) {
+    const lower = liIonSocCurve4s[i - 1];
+    const upper = liIonSocCurve4s[i];
+    if (vCell > upper.voltagePerCell) continue;
+    const span = upper.voltagePerCell - lower.voltagePerCell;
+    if (span <= 0) return lower.percent;
+    const t = (vCell - lower.voltagePerCell) / span;
+    return lower.percent + (upper.percent - lower.percent) * t;
+  }
+
+  return last.percent;
+}
+
 function batteryPercent(snapshot: WeatherStationTelemetry | null | undefined, voltage: number | null) {
   const direct = firstReading(snapshot, item =>
-    labelIncludes(item, ["batt", "battery"]) && unitIncludes(item, ["%"])
+    labelIncludes(item, ["bat", "batt", "battery"]) && unitIncludes(item, ["%"])
   );
   if (direct) return Math.max(0, Math.min(100, direct.value));
 
   const empty = snapshot?.config?.batteryPercentEmptyVoltageV;
   const full = snapshot?.config?.batteryPercentFullVoltageV;
   if (voltage === null || empty === undefined || full === undefined || full <= empty) return null;
-  return Math.max(0, Math.min(100, ((voltage - empty) / (full - empty)) * 100));
+  if (voltage <= empty) return 0;
+  if (voltage >= full) return 100;
+  const cells = inferSeriesCells(full);
+  return Math.max(0, Math.min(100, curveBatteryPercentFromVoltage(voltage, cells)));
 }
 
 function dewPointC(tempC: number | null, humidity: number | null) {
