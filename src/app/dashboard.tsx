@@ -293,7 +293,6 @@ export default function Dashboard() {
               </div>
               <div className="tile-trend">
                 <span className={`delta ${deltaClass}`}>{deltaText}</span>
-                <Sparkline points={series} live={d?.online} />
               </div>
               {secondary !== "--" && <div className="tile-secondary">{secondary}</div>}
             </article>
