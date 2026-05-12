@@ -214,7 +214,7 @@ h1 em {
 }
 
 .delta {
-  font-size: 1.4rem;
+  font-size: 1.12rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   letter-spacing: 0.02em;
@@ -234,7 +234,7 @@ h1 em {
 .spark.live { color: var(--accent); }
 
 .tile-secondary {
-  font-size: 1.44rem;
+  font-size: 1.152rem;
   color: var(--muted);
   margin-top: 0.55rem;
   font-weight: 400;
