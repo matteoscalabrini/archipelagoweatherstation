@@ -42,6 +42,17 @@ function uptime(ms?: number) {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
+function weatherEmoji(tempC: number | null, humidity: number | null, pressureDelta: number | null): string {
+  if (tempC === null) return "🌡️";
+  if (tempC < 5) return "❄️";
+  if (tempC < 12) return "🧥";
+  if (tempC < 18) return "🌤️";
+  if (tempC < 24) return "☀️";
+  if (tempC < 30) return "🌡️";
+  if (tempC < 35) return "🔥";
+  return "🔥";
+}
+
 function solarLabel(mode?: string) {
   switch ((mode ?? "unknown").toLowerCase()) {
     case "sun":    return "Sun · charging";
@@ -180,17 +191,9 @@ export default function Dashboard() {
         <span>Samples &nbsp;<strong>{history.length}</strong></span>
       </div>
 
-      <section className="insights" aria-label="Weather intelligence">
-        <div className="health-title">Weather Intelligence</div>
-        <div className="insight-strip">
-          {insights.values.map(item => (
-            <article className={`insight-tile ${item.tone ?? ""}`} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-        <p className="insight-summary">{insights.summary}</p>
+      <section className="weather-forecast" aria-label="Weather forecast">
+        <span className="weather-forecast-icon">{weatherEmoji(insights.temperatureC, insights.humidityPct, insights.pressureDeltaHpa)}</span>
+        <p className="weather-forecast-text">{insights.summary}</p>
       </section>
 
       <section className="grid" aria-label="Sensor readings">
@@ -269,6 +272,19 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      <footer className="footer-insights" aria-label="Weather intelligence">
+        <div className="footer-insights-title">Weather Intelligence</div>
+        <div className="footer-insight-strip">
+          {insights.values.map(item => (
+            <article className={`footer-insight-tile ${item.tone ?? ""}`} key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </div>
+        <p className="footer-insight-summary">{insights.summary}</p>
+      </footer>
     </main>
   );
 }
