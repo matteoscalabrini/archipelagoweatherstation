@@ -180,7 +180,7 @@ export default function Dashboard() {
       </nav>
 
       <div className="page-title">
-        <h1>Weather <em>Station</em></h1>
+        <h1>Archipelago <em>Weather Station</em></h1>
       </div>
 
       <div className="meta-row">
