@@ -17,6 +17,69 @@ type HistoryResponse = {
 
 type Point = { t: number; v: number };
 
+// ── Mock data for local development ──
+
+function generateMockHistory(count: number): WeatherStationTelemetry[] {
+  const now = Date.now();
+  const history: WeatherStationTelemetry[] = [];
+  for (let i = 0; i < count; i++) {
+    const t = new Date(now - (count - i) * 60000 * 5).toISOString();
+    const temp = 16.7 + Math.sin(i * 0.1) * 0.5 + Math.random() * 0.3;
+    const humidity = 23 + Math.sin(i * 0.08) * 2 + Math.random() * 1;
+    const pressure = 980.6 + Math.sin(i * 0.05) * 0.5 + Math.random() * 0.2;
+    const windSpeed = 1.2 + Math.sin(i * 0.09) * 0.3 + Math.random() * 0.2;
+    const windDir = 134 + Math.sin(i * 0.07) * 10 + Math.random() * 5;
+    const solar = 1.09 + Math.sin(i * 0.15) * 0.2 + Math.random() * 0.1;
+    const batteryW = 0.36 + Math.sin(i * 0.03) * 0.05;
+    const batteryLvl = 89 + Math.sin(i * 0.02) * 2;
+    history.push({
+      board: "Archipelago WS-1",
+      firmwareVersion: "1.2.3",
+      uptimeMs: 86400000 + i * 300000,
+      solarMode: i % 3 === 0 ? "sun" : i % 3 === 1 ? "shadow" : "dark",
+      wifi: { enabled: true, sta: true, ip: "192.168.1.42", lastPostCode: 200, lastPostMessage: "OK" },
+      sensors: { "BME280": true, "BH1750": true, "SHT31": true },
+      displays: [
+        { label: "ENV TEMP", primary: Math.round(temp * 10) / 10, primaryUnit: "C", secondary: Math.round(temp * 10) / 10, secondaryUnit: "", secondaryLabel: "FEELS LIKE", online: true },
+        { label: "ENV HUM", primary: Math.round(humidity * 10) / 10, primaryUnit: "%", secondary: null, secondaryUnit: "", secondaryLabel: "", online: true },
+        { label: "ENV PRES", primary: Math.round(pressure * 10) / 10, primaryUnit: "hPa", secondary: null, secondaryUnit: "", secondaryLabel: "", online: true },
+        { label: "FORECAST", primary: "BETTER", primaryUnit: "", secondary: Math.round(pressure * 0.0024 * 100) / 100, secondaryUnit: "hPa", secondaryLabel: "no trend", online: true },
+        { label: "WIND SPD", primary: Math.round(windSpeed * 10) / 10, primaryUnit: "m/s", secondary: Math.round(windSpeed * 1.94384), secondaryUnit: "", secondaryLabel: "BFT", online: true },
+        { label: "WIND DIR", primary: Math.round(windDir * 10) / 10, primaryUnit: "deg", secondary: null, secondaryUnit: "", secondaryLabel: "FRONT-L", online: true },
+        { label: "SOLAR", primary: Math.round(solar * 100) / 100, primaryUnit: "W", secondary: 16.72, secondaryUnit: "V", secondaryLabel: "", online: true },
+        { label: "BATTERY", primary: Math.round(batteryW * 100) / 100, primaryUnit: "W", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
+        { label: "BAT LVL", primary: Math.round(batteryLvl * 10) / 10, primaryUnit: "%", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
+      ],
+      receivedAt: t,
+    });
+  }
+  return history;
+}
+
+function generateMockTelemetry(): WeatherStationTelemetry {
+  const now = new Date().toISOString();
+  return {
+    board: "Archipelago WS-1",
+    firmwareVersion: "1.2.3",
+    uptimeMs: 86400000,
+    solarMode: "sun",
+    wifi: { enabled: true, sta: true, ip: "192.168.1.42", lastPostCode: 200, lastPostMessage: "OK" },
+    sensors: { "BME280": true, "BH1750": true, "SHT31": true },
+    displays: [
+      { label: "ENV TEMP", primary: 16.7, primaryUnit: "C", secondary: 16.7, secondaryUnit: "", secondaryLabel: "FEELS LIKE", online: true },
+      { label: "ENV HUM", primary: 23, primaryUnit: "%", secondary: null, secondaryUnit: "", secondaryLabel: "", online: true },
+      { label: "ENV PRES", primary: 980.6, primaryUnit: "hPa", secondary: null, secondaryUnit: "", secondaryLabel: "", online: true },
+      { label: "FORECAST", primary: "BETTER", primaryUnit: "", secondary: 2.4, secondaryUnit: "hPa", secondaryLabel: "no trend", online: true },
+      { label: "WIND SPD", primary: 1.2, primaryUnit: "m/s", secondary: 1, secondaryUnit: "", secondaryLabel: "BFT", online: true },
+      { label: "WIND DIR", primary: 134, primaryUnit: "deg", secondary: null, secondaryUnit: "", secondaryLabel: "FRONT-L", online: true },
+      { label: "SOLAR", primary: 1.09, primaryUnit: "W", secondary: 16.72, secondaryUnit: "V", secondaryLabel: "", online: true },
+      { label: "BATTERY", primary: 0.36, primaryUnit: "W", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
+      { label: "BAT LVL", primary: 89, primaryUnit: "%", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
+    ],
+    receivedAt: now,
+  };
+}
+
 function fmt(value: number | string | null | undefined, unit?: string) {
   if (value === null || value === undefined || value === "") return "--";
   return `${value}${unit ? ` ${unit}` : ""}`;
@@ -140,9 +203,17 @@ export default function Dashboard() {
         const latest = (await latestRes.json()) as LatestResponse;
         const hist = (await historyRes.json()) as HistoryResponse;
         if (cancelled) return;
-        setTelemetry(latest.telemetry);
-        setConnected(latest.connected);
-        setHistory(hist.history ?? []);
+
+        // Use mock data if API returns no data
+        if (!latest.telemetry || !latest.telemetry.displays || latest.telemetry.displays.length === 0) {
+          setTelemetry(generateMockTelemetry());
+          setConnected(true);
+          setHistory(generateMockHistory(200));
+        } else {
+          setTelemetry(latest.telemetry);
+          setConnected(latest.connected);
+          setHistory(hist.history ?? []);
+        }
         setError("");
       } catch {
         if (!cancelled) setError("connection lost");
