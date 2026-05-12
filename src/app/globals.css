@@ -144,10 +144,10 @@ h1 em {
 
 .weather-forecast-text {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.55;
   color: var(--text);
-  font-weight: 400;
+  font-weight: 500;
 }
 
 /* ── SENSOR GRID ── */

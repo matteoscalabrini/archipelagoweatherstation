@@ -343,19 +343,6 @@ export default function Dashboard() {
           </div>
         )}
       </section>
-
-      <footer className="footer-insights" aria-label="Weather intelligence">
-        <div className="footer-insights-title">Weather Intelligence</div>
-        <div className="footer-insight-strip">
-          {insights.values.map(item => (
-            <article className={`footer-insight-tile ${item.tone ?? ""}`} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-        <p className="footer-insight-summary">{insights.summary}</p>
-      </footer>
     </main>
   );
 }
