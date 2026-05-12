@@ -186,8 +186,8 @@ h1 em {
 .tile-dot.live { background: var(--accent); }
 
 .tile-label {
-  font-size: 1.36rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 300;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--muted);
@@ -195,7 +195,7 @@ h1 em {
 
 .tile-value {
   font-size: clamp(1.4rem, 2.8vw, 1.9rem);
-  font-weight: 300;
+  font-weight: 400;
   color: var(--text);
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
@@ -214,7 +214,7 @@ h1 em {
 }
 
 .delta {
-  font-size: 1.12rem;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   letter-spacing: 0.02em;
@@ -234,7 +234,7 @@ h1 em {
 .spark.live { color: var(--accent); }
 
 .tile-secondary {
-  font-size: 1.152rem;
+  font-size: 1rem;
   color: var(--muted);
   margin-top: 0.55rem;
   font-weight: 400;
@@ -247,7 +247,7 @@ h1 em {
 }
 
 .health-title {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -269,7 +269,8 @@ h1 em {
 }
 
 .health-label {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 400;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--muted);
@@ -277,15 +278,15 @@ h1 em {
 }
 
 .health-value {
-  font-size: 0.92rem;
-  font-weight: 400;
+  font-size: 1rem;
+  font-weight: 500;
   color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .health-sub {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 
 .ok-text  { color: var(--green); }
