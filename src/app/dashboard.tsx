@@ -303,7 +303,11 @@ function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
 
   const dots = useMemo(() => {
     const { columns, rows } = grid;
-    const litCells: Array<{ key: string; col: number; row: number }> = [];
+    const lit = new Set<string>();
+
+    const addCell = (col: number, row: number) => {
+      lit.add(`${col}:${row}`);
+    };
 
     if (points.length >= 2) {
       const xs = points.map((p) => p.t);
@@ -340,11 +344,30 @@ function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
         const v = bucketed[col] ?? firstDefined;
         const normalized = yRange === 0 ? 0.5 : clamp((v - yMin) / yRange, 0, 1);
         const row = clamp(Math.round((1 - normalized) * (rows - 1)), 0, rows - 1);
-        litCells.push({ key: `${col}:${row}`, col, row });
+
+        if (col === 0) {
+          addCell(col, row);
+          continue;
+        }
+
+        const previousValue = bucketed[col - 1] ?? firstDefined;
+        const previousNormalized = yRange === 0 ? 0.5 : clamp((previousValue - yMin) / yRange, 0, 1);
+        const previousRow = clamp(Math.round((1 - previousNormalized) * (rows - 1)), 0, rows - 1);
+
+        // Draw a connected step: horizontal bridge, then vertical bridge.
+        addCell(col, previousRow);
+        if (previousRow !== row) {
+          const step = row > previousRow ? 1 : -1;
+          for (let r = previousRow; r !== row; r += step) addCell(col, r);
+        }
+        addCell(col, row);
       }
     }
 
-    return litCells;
+    return Array.from(lit).map((key) => {
+      const [col, row] = key.split(":").map((part) => parseInt(part, 10));
+      return { key, col, row };
+    });
   }, [points, grid]);
 
   return (
