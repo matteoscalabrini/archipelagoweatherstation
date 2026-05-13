@@ -17,8 +17,6 @@ type HistoryResponse = {
 
 type Point = { t: number; v: number };
 
-// ── Mock data for local development ──
-
 function generateMockHistory(count: number): WeatherStationTelemetry[] {
   const now = Date.now();
   const history: WeatherStationTelemetry[] = [];
@@ -38,7 +36,7 @@ function generateMockHistory(count: number): WeatherStationTelemetry[] {
       uptimeMs: 86400000 + i * 300000,
       solarMode: i % 3 === 0 ? "sun" : i % 3 === 1 ? "shadow" : "dark",
       wifi: { enabled: true, sta: true, ip: "192.168.1.42", lastPostCode: 200, lastPostMessage: "OK" },
-      sensors: { "BME280": true, "BH1750": true, "SHT31": true },
+      sensors: { BME280: true, BH1750: true, SHT31: true },
       displays: [
         { label: "ENV TEMP", primary: Math.round(temp * 10) / 10, primaryUnit: "C", secondary: Math.round(temp * 10) / 10, secondaryUnit: "", secondaryLabel: "FEELS LIKE", online: true },
         { label: "ENV HUM", primary: Math.round(humidity * 10) / 10, primaryUnit: "%", secondary: null, secondaryUnit: "", secondaryLabel: "", online: true },
@@ -48,9 +46,9 @@ function generateMockHistory(count: number): WeatherStationTelemetry[] {
         { label: "WIND DIR", primary: Math.round(windDir * 10) / 10, primaryUnit: "deg", secondary: null, secondaryUnit: "", secondaryLabel: "FRONT-L", online: true },
         { label: "SOLAR", primary: Math.round(solar * 100) / 100, primaryUnit: "W", secondary: 16.72, secondaryUnit: "V", secondaryLabel: "", online: true },
         { label: "BATTERY", primary: Math.round(batteryW * 100) / 100, primaryUnit: "W", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
-        { label: "BAT LVL", primary: Math.round(batteryLvl * 10) / 10, primaryUnit: "%", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
+        { label: "BAT LVL", primary: Math.round(batteryLvl * 10) / 10, primaryUnit: "%", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true }
       ],
-      receivedAt: t,
+      receivedAt: t
     });
   }
   return history;
@@ -64,7 +62,7 @@ function generateMockTelemetry(): WeatherStationTelemetry {
     uptimeMs: 86400000,
     solarMode: "sun",
     wifi: { enabled: true, sta: true, ip: "192.168.1.42", lastPostCode: 200, lastPostMessage: "OK" },
-    sensors: { "BME280": true, "BH1750": true, "SHT31": true },
+    sensors: { BME280: true, BH1750: true, SHT31: true },
     displays: [
       { label: "ENV TEMP", primary: 16.7, primaryUnit: "C", secondary: 16.7, secondaryUnit: "", secondaryLabel: "FEELS LIKE", online: true },
       { label: "ENV HUM", primary: 23, primaryUnit: "%", secondary: null, secondaryUnit: "", secondaryLabel: "", online: true },
@@ -74,9 +72,9 @@ function generateMockTelemetry(): WeatherStationTelemetry {
       { label: "WIND DIR", primary: 134, primaryUnit: "deg", secondary: null, secondaryUnit: "", secondaryLabel: "FRONT-L", online: true },
       { label: "SOLAR", primary: 1.09, primaryUnit: "W", secondary: 16.72, secondaryUnit: "V", secondaryLabel: "", online: true },
       { label: "BATTERY", primary: 0.36, primaryUnit: "W", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
-      { label: "BAT LVL", primary: 89, primaryUnit: "%", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true },
+      { label: "BAT LVL", primary: 89, primaryUnit: "%", secondary: 16.2, secondaryUnit: "V", secondaryLabel: "", online: true }
     ],
-    receivedAt: now,
+    receivedAt: now
   };
 }
 
@@ -105,23 +103,16 @@ function uptime(ms?: number) {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-function weatherEmoji(tempC: number | null, humidity: number | null, pressureDelta: number | null): string {
-  if (tempC === null) return "🌡️";
-  if (tempC < 5) return "❄️";
-  if (tempC < 12) return "🧥";
-  if (tempC < 18) return "🌤️";
-  if (tempC < 24) return "☀️";
-  if (tempC < 30) return "🌡️";
-  if (tempC < 35) return "🔥";
-  return "🔥";
-}
-
 function solarLabel(mode?: string) {
   switch ((mode ?? "unknown").toLowerCase()) {
-    case "sun":    return "Sun · charging";
-    case "shadow": return "Shaded";
-    case "dark":   return "Dark · battery";
-    default:       return "Unknown";
+    case "sun":
+      return "SUN / CHARGING";
+    case "shadow":
+      return "SHADED";
+    case "dark":
+      return "DARK / BATTERY";
+    default:
+      return "UNKNOWN";
   }
 }
 
@@ -134,10 +125,56 @@ function toNumber(v: unknown): number | null {
   return null;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function scaleToPercent(value: number, min: number, max: number) {
+  if (max <= min) return null;
+  return clamp(((value - min) / (max - min)) * 100, 0, 100);
+}
+
+function signalPercent(
+  label: string | undefined,
+  value: number | string | null | undefined,
+  unit?: string
+): number | null {
+  const n = toNumber(value);
+  if (n === null) return null;
+
+  const channel = (label ?? "").toUpperCase();
+  const normalized = (unit ?? "").toLowerCase();
+
+  if (channel.includes("TEMP")) {
+    if (normalized.includes("f")) return scaleToPercent((n - 32) * (5 / 9), -10, 40);
+    return scaleToPercent(n, -10, 40);
+  }
+
+  if (channel.includes("HUM") || channel.includes("BAT LVL") || normalized.includes("%")) {
+    return scaleToPercent(n, 0, 100);
+  }
+
+  // Assumption: wind speed full scale is 30 m/s (easy to tweak).
+  if (channel.includes("WIND SPD") || normalized.includes("m/s")) {
+    return scaleToPercent(n, 0, 30);
+  }
+
+  if ((channel.includes("SOLAR") || channel.includes("BATTERY")) && normalized.includes("w")) {
+    return scaleToPercent(n, 0, 25);
+  }
+
+  if (normalized.includes("hpa")) return scaleToPercent(n, 960, 1040);
+  if (normalized.includes("deg")) return scaleToPercent(n, 0, 360);
+  if (normalized.includes("v")) return scaleToPercent(n, 10, 18);
+  if (n >= 0 && n <= 100) return n;
+
+  return null;
+}
+
 function extractSeries(history: WeatherStationTelemetry[], label: string): Point[] {
   const points: Point[] = [];
   for (const snap of history) {
-    const display = snap.displays?.find(d => d?.label === label);
+    const display = snap.displays?.find((d) => d?.label === label);
     const v = toNumber(display?.primary);
     if (v !== null && snap.receivedAt) {
       points.push({ t: new Date(snap.receivedAt).getTime(), v });
@@ -159,12 +196,22 @@ function trendDelta(points: Point[], windowMs = 3_600_000): number | null {
   return last.v - earlier.v;
 }
 
+function weatherEmoji(tempC: number | null, humidity: number | null, pressureDelta: number | null) {
+  if (tempC === null) return "🌡️";
+  if (pressureDelta !== null && pressureDelta <= -1.5 && (humidity ?? 0) > 80) return "⛈️";
+  if (humidity !== null && humidity > 85) return "🌧️";
+  if (tempC <= 2) return "❄️";
+  if (tempC >= 30) return "🔥";
+  if (pressureDelta !== null && pressureDelta > 1) return "☀️";
+  return "⛅";
+}
+
 function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
   if (points.length < 2) return <svg className="spark" viewBox="0 0 100 24" preserveAspectRatio="none" />;
   const W = 100;
   const H = 24;
-  const xs = points.map(p => p.t);
-  const ys = points.map(p => p.v);
+  const xs = points.map((p) => p.t);
+  const ys = points.map((p) => p.v);
   const xMin = xs[0];
   const xMax = xs[xs.length - 1];
   const yMin = Math.min(...ys);
@@ -204,7 +251,6 @@ export default function Dashboard() {
         const hist = (await historyRes.json()) as HistoryResponse;
         if (cancelled) return;
 
-        // Use mock data if API returns no data
         if (!latest.telemetry || !latest.telemetry.displays || latest.telemetry.displays.length === 0) {
           setTelemetry(generateMockTelemetry());
           setConnected(true);
@@ -231,77 +277,106 @@ export default function Dashboard() {
   const displays = telemetry?.displays ?? [];
   const status = error ? "error" : connected ? "online" : "waiting";
 
-  // History is stored newest-first; reverse for chronological left-to-right plotting.
   const orderedHistory = useMemo(() => [...history].reverse(), [history]);
   const insights = useMemo(() => deriveWeatherInsights(telemetry, history), [telemetry, history]);
 
   const sensorEntries = telemetry?.sensors ? Object.entries(telemetry.sensors) : [];
+  const wxIcon = weatherEmoji(insights.temperatureC, insights.humidityPct, insights.pressureDeltaHpa);
 
   return (
-    <main>
+    <main className="dashboard-shell">
       <nav className="topbar">
-        <span className="brand">Archipelago</span>
+        <div className="brand-stack">
+          <span className="brand">Archipelago</span>
+          <h1>
+            Archipelago <em>Weather Station</em>
+          </h1>
+        </div>
         <div className="admin-top-actions">
-          <a className="toplink" href="/history">History</a>
-          <a className="toplink" href="/admin">Admin</a>
-          <span className={`status-pill ${status}`}>
-            {error || (connected ? "Online" : "Waiting")}
-          </span>
+          <a className="toplink" href="/history">
+            History
+          </a>
+          <a className="toplink" href="/admin">
+            Admin
+          </a>
+          <span className={`status-pill ${status}`}>{error || (connected ? "Online" : "Waiting")}</span>
         </div>
       </nav>
 
-      <div className="page-title">
-        <h1>Archipelago <em>Weather Station</em></h1>
-      </div>
-
       <div className="meta-row">
-        <span>Mode &nbsp;<strong>{solarLabel(telemetry?.solarMode)}</strong></span>
-        <span>Last &nbsp;<strong>{age(telemetry?.receivedAt)}</strong></span>
-        <span>Board &nbsp;<strong>{telemetry?.board ?? "--"}</strong></span>
-        <span>Active &nbsp;<strong>{displays.filter(d => d?.online).length} / {displays.length || "--"}</strong></span>
-        <span>Samples &nbsp;<strong>{history.length}</strong></span>
+        <span>
+          Mode <strong>{solarLabel(telemetry?.solarMode)}</strong>
+        </span>
+        <span>
+          Last <strong>{age(telemetry?.receivedAt)}</strong>
+        </span>
+        <span>
+          Board <strong>{telemetry?.board ?? "--"}</strong>
+        </span>
+        <span>
+          Firmware <strong>{telemetry?.firmwareVersion ?? "--"}</strong>
+        </span>
+        <span>
+          Active <strong>{displays.filter((d) => d?.online).length} / {displays.length || "--"}</strong>
+        </span>
       </div>
 
       <section className="weather-forecast" aria-label="Weather forecast">
-        <span className="weather-forecast-icon">{weatherEmoji(insights.temperatureC, insights.humidityPct, insights.pressureDeltaHpa)}</span>
-        <p className="weather-forecast-text">{insights.summary}</p>
+        <span className="weather-forecast-icon" aria-hidden>{wxIcon}</span>
+        <p className="weather-forecast-text">
+          <span className="weather-forecast-box">{insights.summary}</span>
+        </p>
       </section>
 
-      <section className="grid" aria-label="Sensor readings">
-        {Array.from({ length: 9 }).map((_, i) => {
-          const d = displays[i];
-          const series = d?.label ? extractSeries(orderedHistory, d.label) : [];
-          const delta = trendDelta(series);
-          const secondary = d?.secondaryLabel
-            ? `${d.secondaryLabel} ${fmt(d.secondary, d.secondaryUnit)}`
-            : fmt(d?.secondary, d?.secondaryUnit);
-          const arrow = delta === null ? "—" : delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
-          const deltaClass = delta === null || delta === 0 ? "flat" : delta > 0 ? "up" : "down";
-          const deltaText =
-            delta === null
-              ? "no trend"
-              : `${arrow} ${Math.abs(delta).toFixed(2)}${d?.primaryUnit ? " " + d.primaryUnit : ""} /1h`;
+      <section className="grid-frame" aria-label="OLED matrix frame">
+        <div className="grid" aria-label="Sensor readings">
+          {Array.from({ length: 9 }).map((_, i) => {
+            const d = displays[i];
+            const series = d?.label ? extractSeries(orderedHistory, d.label) : [];
+            const delta = trendDelta(series);
+            const secondary = d?.secondaryLabel
+              ? `${d.secondaryLabel} ${fmt(d.secondary, d.secondaryUnit)}`
+              : fmt(d?.secondary, d?.secondaryUnit);
+            const deltaState = delta === null || delta === 0 ? "flat" : delta > 0 ? "up" : "down";
+            const deltaDirection = delta === null ? "NA" : delta > 0 ? "UP" : delta < 0 ? "DOWN" : "FLAT";
+            const deltaText =
+              delta === null
+                ? "TREND N/A"
+                : `${deltaDirection} ${Math.abs(delta).toFixed(2)}${d?.primaryUnit ? ` ${d.primaryUnit}` : ""} /1H`;
+            const signal = signalPercent(d?.label, d?.primary, d?.primaryUnit);
 
-          return (
-            <article className="tile" key={i}>
-              <div className="tile-top">
-                <div className={`tile-dot ${d?.online ? "live" : ""}`} />
-                <span className="tile-label">{d?.label ?? `Channel ${i + 1}`}</span>
-              </div>
-              <div className={`tile-value ${d?.online ? "" : "dim"}`}>
-                {fmt(d?.primary, d?.primaryUnit)}
-              </div>
-              <div className="tile-trend">
-                <span className={`delta ${deltaClass}`}>{deltaText}</span>
-              </div>
-              {secondary !== "--" && <div className="tile-secondary">{secondary}</div>}
-            </article>
-          );
-        })}
+            return (
+              <article className={`tile ${d?.online ? "live" : "offline"}`} key={i}>
+                <div className="tile-top">
+                  <span className="tile-channel">CH-{String(i + 1).padStart(2, "0")}</span>
+                  <span className="tile-label">{d?.label ?? `CHANNEL ${i + 1}`}</span>
+                  <div className={`tile-dot ${d?.online ? "live" : ""}`} />
+                </div>
+
+                <div className={`tile-value ${d?.online ? "" : "dim"}`}>{fmt(d?.primary, d?.primaryUnit)}</div>
+
+                {signal !== null && (
+                  <div className="tile-meter" aria-label="Signal level">
+                    <span style={{ width: `${signal.toFixed(0)}%` }} />
+                  </div>
+                )}
+
+                <div className="tile-trend">
+                  <span className={`delta ${deltaState}`}>{deltaText}</span>
+                  <div className="tile-spark-wrap">
+                    <Sparkline points={series} live={d?.online} />
+                  </div>
+                </div>
+
+                <div className="tile-secondary">{secondary === "--" ? "AUX --" : secondary}</div>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       <section className="health" aria-label="System health">
-        <div className="health-title">System Health</div>
+        <div className="health-title">System Diagnostics</div>
         <div className="health-grid">
           <div className="health-cell">
             <div className="health-label">Solar Mode</div>
@@ -314,8 +389,14 @@ export default function Dashboard() {
           <div className="health-cell">
             <div className="health-label">Network</div>
             <div className="health-value">
-              {telemetry?.wifi?.sta ? "Station" : telemetry?.wifi?.recoveryAp ? "Recovery AP" : telemetry?.wifi?.ap ? "Access Point" : "Offline"}
-              {telemetry?.wifi?.ip && <span className="health-sub"> · {telemetry.wifi.ip}</span>}
+              {telemetry?.wifi?.sta
+                ? "Station"
+                : telemetry?.wifi?.recoveryAp
+                  ? "Recovery AP"
+                  : telemetry?.wifi?.ap
+                    ? "Access Point"
+                    : "Offline"}
+              {telemetry?.wifi?.ip && <span className="health-sub"> | {telemetry.wifi.ip}</span>}
             </div>
           </div>
           <div className="health-cell">
@@ -324,9 +405,7 @@ export default function Dashboard() {
               <span className={telemetry?.wifi?.lastPostCode === 200 ? "ok-text" : "dim-text"}>
                 {telemetry?.wifi?.lastPostCode ?? "--"}
               </span>
-              {telemetry?.wifi?.lastPostMessage && (
-                <span className="health-sub"> · {telemetry.wifi.lastPostMessage}</span>
-              )}
+              {telemetry?.wifi?.lastPostMessage && <span className="health-sub"> | {telemetry.wifi.lastPostMessage}</span>}
             </div>
           </div>
         </div>
