@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { deriveWeatherInsights } from "@/lib/insights";
 import type { WeatherStationTelemetry } from "@/lib/telemetry";
 
@@ -196,6 +196,67 @@ function trendDelta(points: Point[], windowMs = 3_600_000): number | null {
   return last.v - earlier.v;
 }
 
+type ForecastDrivers = {
+  pressureDelta: number | null;
+  humidityDelta: number | null;
+  windDelta: number | null;
+  confidencePct: number | null;
+};
+
+function forecastConfidence(
+  forecastState: string,
+  pressureDelta: number | null,
+  humidityDelta: number | null,
+  windDelta: number | null
+) {
+  if (pressureDelta === null || humidityDelta === null || windDelta === null) return null;
+
+  const state = forecastState.toUpperCase();
+  let score = 50;
+
+  if (state.includes("BETTER") || state.includes("IMPROV") || state.includes("CLEAR")) {
+    score += clamp(pressureDelta / 2.5, -1, 1) * 24;
+    score += clamp(-humidityDelta / 8, -1, 1) * 14;
+    score += clamp(-windDelta / 2.5, -1, 1) * 12;
+  } else if (state.includes("WORSE") || state.includes("RAIN") || state.includes("STORM")) {
+    score += clamp(-pressureDelta / 2.5, -1, 1) * 24;
+    score += clamp(humidityDelta / 8, -1, 1) * 14;
+    score += clamp(windDelta / 2.5, -1, 1) * 12;
+  } else {
+    score += clamp(1 - Math.abs(pressureDelta) / 1.5, 0, 1) * 18;
+    score += clamp(1 - Math.abs(humidityDelta) / 6, 0, 1) * 16;
+    score += clamp(1 - Math.abs(windDelta) / 2, 0, 1) * 16;
+  }
+
+  return clamp(Math.round(score), 5, 99);
+}
+
+function buildForecastDrivers(
+  forecastState: string,
+  history: WeatherStationTelemetry[]
+): ForecastDrivers {
+  const pressureSeries = extractSeries(history, "ENV PRES");
+  const humiditySeries = extractSeries(history, "ENV HUM");
+  const windSeries = extractSeries(history, "WIND SPD");
+
+  const pressureDelta = trendDelta(pressureSeries, 3 * 60 * 60 * 1000);
+  const humidityDelta = trendDelta(humiditySeries, 60 * 60 * 1000);
+  const windDelta = trendDelta(windSeries, 60 * 60 * 1000);
+
+  return {
+    pressureDelta,
+    humidityDelta,
+    windDelta,
+    confidencePct: forecastConfidence(forecastState, pressureDelta, humidityDelta, windDelta)
+  };
+}
+
+function signed(value: number | null, digits = 2) {
+  if (value === null) return "--";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(digits)}`;
+}
+
 function weatherEmoji(tempC: number | null, humidity: number | null, pressureDelta: number | null) {
   if (tempC === null) return "🌡️";
   if (pressureDelta !== null && pressureDelta <= -1.5 && (humidity ?? 0) > 80) return "⛈️";
@@ -207,28 +268,102 @@ function weatherEmoji(tempC: number | null, humidity: number | null, pressureDel
 }
 
 function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
-  if (points.length < 2) return <svg className="spark" viewBox="0 0 100 24" preserveAspectRatio="none" />;
-  const W = 100;
-  const H = 24;
-  const xs = points.map((p) => p.t);
-  const ys = points.map((p) => p.v);
-  const xMin = xs[0];
-  const xMax = xs[xs.length - 1];
-  const yMin = Math.min(...ys);
-  const yMax = Math.max(...ys);
-  const xRange = xMax - xMin || 1;
-  const yRange = yMax - yMin || 1;
-  const path = points
-    .map((p, i) => {
-      const x = ((p.t - xMin) / xRange) * W;
-      const y = H - ((p.v - yMin) / yRange) * (H - 2) - 1;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const [grid, setGrid] = useState({ columns: 24, rows: 8 });
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || typeof ResizeObserver === "undefined") return;
+    const element = host;
+
+    function updateGrid(width: number, height: number) {
+      const style = getComputedStyle(element);
+      const square = parseFloat(style.getPropertyValue("--matrix-square-size")) || 3;
+      const gap = parseFloat(style.getPropertyValue("--matrix-square-gap")) || 2;
+      const step = Math.max(1, square + gap);
+
+      const columns = Math.max(12, Math.floor((width + gap) / step));
+      const rows = Math.max(6, Math.floor((height + gap) / step));
+
+      setGrid((prev) => (prev.columns === columns && prev.rows === rows ? prev : { columns, rows }));
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      updateGrid(entry.contentRect.width, entry.contentRect.height);
+    });
+
+    observer.observe(element);
+    const rect = element.getBoundingClientRect();
+    updateGrid(rect.width, rect.height);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const dots = useMemo(() => {
+    const { columns, rows } = grid;
+    const litCells: Array<{ key: string; col: number; row: number }> = [];
+
+    if (points.length >= 2) {
+      const xs = points.map((p) => p.t);
+      const ys = points.map((p) => p.v);
+      const xMin = xs[0];
+      const xMax = xs[xs.length - 1];
+      const yMin = Math.min(...ys);
+      const yMax = Math.max(...ys);
+      const xRange = xMax - xMin || 1;
+      const yRange = yMax - yMin || 1;
+      const bucketed: Array<number | null> = Array.from({ length: columns }, () => null);
+
+      for (const p of points) {
+        const col = clamp(Math.round(((p.t - xMin) / xRange) * (columns - 1)), 0, columns - 1);
+        bucketed[col] = p.v;
+      }
+
+      let firstDefined = points[0].v;
+      for (const v of bucketed) {
+        if (v !== null) {
+          firstDefined = v;
+          break;
+        }
+      }
+
+      let previous = firstDefined;
+      for (let col = 0; col < columns; col += 1) {
+        const current = bucketed[col];
+        if (current === null) bucketed[col] = previous;
+        else previous = current;
+      }
+
+      for (let col = 0; col < columns; col += 1) {
+        const v = bucketed[col] ?? firstDefined;
+        const normalized = yRange === 0 ? 0.5 : clamp((v - yMin) / yRange, 0, 1);
+        const row = clamp(Math.round((1 - normalized) * (rows - 1)), 0, rows - 1);
+        litCells.push({ key: `${col}:${row}`, col, row });
+      }
+    }
+
+    return litCells;
+  }, [points, grid]);
+
   return (
-    <svg className={`spark ${live ? "live" : ""}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div
+      ref={hostRef}
+      className={`spark-matrix ${live ? "live" : ""}`}
+      style={{
+        gridTemplateColumns: `repeat(${grid.columns}, var(--matrix-square-size))`,
+        gridTemplateRows: `repeat(${grid.rows}, var(--matrix-square-size))`
+      }}
+    >
+      {dots.map((dot) => (
+        <span
+          key={dot.key}
+          className="spark-dot on"
+          style={{ gridColumnStart: dot.col + 1, gridRowStart: dot.row + 1 }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -322,10 +457,10 @@ export default function Dashboard() {
       </div>
 
       <section className="weather-forecast" aria-label="Weather forecast">
-        <span className="weather-forecast-icon" aria-hidden>{wxIcon}</span>
-        <p className="weather-forecast-text">
-          <span className="weather-forecast-box">{insights.summary}</span>
-        </p>
+        <div className="weather-forecast-box">
+          <span className="weather-forecast-emoji" aria-hidden>{wxIcon}</span>
+          <p className="weather-forecast-text">{insights.summary}</p>
+        </div>
       </section>
 
       <section className="grid-frame" aria-label="OLED matrix frame">
@@ -333,6 +468,7 @@ export default function Dashboard() {
           {Array.from({ length: 9 }).map((_, i) => {
             const d = displays[i];
             const series = d?.label ? extractSeries(orderedHistory, d.label) : [];
+            const isForecastTile = (d?.label ?? "").toUpperCase().includes("FORECAST");
             const delta = trendDelta(series);
             const secondary = d?.secondaryLabel
               ? `${d.secondaryLabel} ${fmt(d.secondary, d.secondaryUnit)}`
@@ -344,6 +480,7 @@ export default function Dashboard() {
                 ? "TREND N/A"
                 : `${deltaDirection} ${Math.abs(delta).toFixed(2)}${d?.primaryUnit ? ` ${d.primaryUnit}` : ""} /1H`;
             const signal = signalPercent(d?.label, d?.primary, d?.primaryUnit);
+            const forecastDrivers = isForecastTile ? buildForecastDrivers(String(d?.primary ?? ""), orderedHistory) : null;
 
             return (
               <article className={`tile ${d?.online ? "live" : "offline"}`} key={i}>
@@ -361,12 +498,31 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                <div className="tile-trend">
-                  <span className={`delta ${deltaState}`}>{deltaText}</span>
-                  <div className="tile-spark-wrap">
-                    <Sparkline points={series} live={d?.online} />
+                {isForecastTile ? (
+                  <div className="tile-trend forecast-trend">
+                    <div className="forecast-conf-row">
+                      <span className="delta">CONF</span>
+                      <span className="delta">
+                        {forecastDrivers?.confidencePct !== null ? `${forecastDrivers?.confidencePct}%` : "--"}
+                      </span>
+                    </div>
+                    <div className="tile-meter forecast-meter" aria-label="Forecast confidence">
+                      <span style={{ width: `${forecastDrivers?.confidencePct ?? 0}%` }} />
+                    </div>
+                    <div className="forecast-drivers">
+                      <span className="delta">PRES {signed(forecastDrivers?.pressureDelta ?? null)} hPa /3H</span>
+                      <span className="delta">HUM {signed(forecastDrivers?.humidityDelta ?? null)} % /1H</span>
+                      <span className="delta">WIND {signed(forecastDrivers?.windDelta ?? null)} m/s /1H</span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="tile-trend">
+                    <span className={`delta ${deltaState}`}>{deltaText}</span>
+                    <div className="tile-spark-wrap">
+                      <Sparkline points={series} live={d?.online} />
+                    </div>
+                  </div>
+                )}
 
                 <div className="tile-secondary">{secondary === "--" ? "AUX --" : secondary}</div>
               </article>

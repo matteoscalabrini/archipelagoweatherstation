@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Doto:wght@400;500;600&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Doto:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap');
 
 :root {
   color-scheme: light;
@@ -14,6 +14,9 @@
   --green: #16763a;
   --red: #c83f3f;
   --warn: #9a6700;
+  --matrix-square-size: 3px;
+  --matrix-square-gap: 2px;
+  --matrix-square-step: calc(var(--matrix-square-size) + var(--matrix-square-gap));
 }
 
 * { box-sizing: border-box; }
@@ -135,42 +138,37 @@ main {
 .weather-forecast {
   margin-bottom: 0.9rem;
   padding: 0.25rem 0;
-  display: grid;
-  grid-template-columns: 3.3rem 1fr;
-  align-items: stretch;
-  gap: 0.6rem;
-}
-
-.weather-forecast-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--accent);
-  font-size: 2rem;
-  line-height: 1;
 }
 
 .weather-forecast-text {
   margin: 0;
-  display: flex;
-  font-size: 1rem;
-  color: var(--text);
+  font-family: 'Doto', 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.1rem;
+  color: #ffffff;
   line-height: 1.45;
 }
 
 .weather-forecast-box {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
   align-items: center;
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid #2f2f2f;
   border-radius: 6px;
-  background: var(--surface);
+  background: #000000;
   padding: 0.45rem 0.55rem;
+}
+
+.weather-forecast-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.1rem;
+  font-size: 1.7rem;
+  line-height: 1;
 }
 
 .grid-frame {
@@ -188,10 +186,10 @@ main {
 .tile {
   position: relative;
   min-width: 0;
-  border: 1px solid var(--border);
+  border: 1px solid #2f2f2f;
   border-radius: 7px;
   padding: 0.58rem 0.62rem;
-  background: var(--surface);
+  background: #000000;
   display: flex;
   flex-direction: column;
   min-height: 198px;
@@ -200,7 +198,7 @@ main {
 
 .tile.live,
 .tile.offline {
-  border-color: var(--border);
+  border-color: #3a3a3a;
 }
 
 .tile.offline {
@@ -230,16 +228,18 @@ main {
 .tile-channel {
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.66rem;
+  font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--faint);
+  color: #8a8a8a;
 }
 
 .tile-label {
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
+  font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #e0e0e0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -248,24 +248,24 @@ main {
 .tile-dot {
   width: 0.42rem;
   height: 0.42rem;
-  border-radius: 999px;
+  border-radius: 0;
   margin-left: auto;
   background: #d1d5db;
 }
 
 .tile-dot.live {
-  background: var(--accent);
+  background: #ffffff;
   box-shadow: none;
 }
 
 .tile-value {
   margin-top: 0.05rem;
   margin-bottom: 0.25rem;
-  color: #111111;
+  color: #ffffff;
   font-family: 'Doto', 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: clamp(1.45rem, 2.9vw, 2.05rem);
+  font-size: clamp(1.75rem, 3.2vw, 2.45rem);
   line-height: 1.02;
-  font-weight: 500;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-shadow: none;
   min-height: 1.1em;
@@ -275,36 +275,79 @@ main {
 }
 
 .tile-value.dim {
-  color: var(--faint);
+  color: #7f7f7f;
 }
 
 .tile-meter {
-  height: 0.46rem;
-  border: 1px solid var(--border);
+  height: var(--matrix-square-size);
+  border: 0;
   margin-bottom: 0.25rem;
-  background: #ffffff;
+  overflow: hidden;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.2) 0 var(--matrix-square-size),
+    transparent var(--matrix-square-size) var(--matrix-square-step)
+  );
 }
 
 .tile-meter span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #2563eb, #7aa7ff);
+  background: repeating-linear-gradient(
+    90deg,
+    #ffffff 0 var(--matrix-square-size),
+    transparent var(--matrix-square-size) var(--matrix-square-step)
+  );
 }
 
 .tile-trend {
   display: grid;
+  grid-template-rows: auto 1fr;
   gap: 0.2rem;
   min-height: 0;
+  flex: 1;
+}
+
+.forecast-trend {
+  grid-template-rows: auto auto 1fr;
+  gap: 0.22rem;
+}
+
+.forecast-conf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.forecast-meter {
+  margin-bottom: 0;
+}
+
+.forecast-drivers {
+  display: grid;
+  gap: 0.14rem;
+  align-content: start;
+}
+
+.forecast-drivers .delta {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .delta {
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.82rem;
+  font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   line-height: 1.15;
   white-space: normal;
-  color: var(--muted);
+  color: #b0b0b0;
 }
 
 .delta.up,
@@ -321,31 +364,49 @@ main {
   color: var(--red);
 }
 
-.spark {
+.spark-matrix {
+  display: grid;
   width: 100%;
-  height: 1.3rem;
-  color: #a3afbf;
-  display: block;
+  height: 100%;
+  column-gap: var(--matrix-square-gap);
+  row-gap: var(--matrix-square-gap);
+  justify-content: start;
+  align-content: start;
 }
 
-.spark.live {
-  color: var(--accent);
+.spark-matrix.live {
+  color: #ffffff;
+}
+
+.spark-dot {
+  width: var(--matrix-square-size);
+  height: var(--matrix-square-size);
+  border-radius: 0;
+  background: #000000;
+}
+
+.spark-dot.on {
+  background: #ffffff;
 }
 
 .tile-spark-wrap {
-  border: 1px solid var(--border);
-  background: #ffffff;
-  min-height: 1.46rem;
-  padding: 0.1rem 0.15rem;
+  border: 0;
+  background: transparent;
+  min-height: 2.55rem;
+  height: 100%;
+  padding: 0.06rem 0;
+  display: flex;
+  align-items: stretch;
 }
 
 .tile-secondary {
-  margin-top: auto;
+  margin-top: 0.25rem;
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.72rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: #c7c7c7;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1315,13 +1376,16 @@ main {
 @media (max-width: 640px) {
   main { padding: 0 0.5rem 2rem; }
   .tile { border-radius: 6px; padding: 0.44rem 0.5rem 0.54rem; min-height: 186px; }
-  .tile-value { font-size: 1.5rem; }
+  .tile-value { font-size: 1.78rem; }
   .tile-label { font-size: 0.74rem; }
   .delta { font-size: 0.72rem; }
+  .forecast-drivers .delta { font-size: 0.72rem; }
   .tile-secondary { font-size: 0.64rem; }
-  .spark { height: 1rem; }
+  .tile-spark-wrap { min-height: 2.1rem; }
   .meta-row { gap: 0.45rem; }
-  .weather-forecast { grid-template-columns: 1fr; }
+  .weather-forecast-box { gap: 0.5rem; }
+  .weather-forecast-text { font-size: 0.95rem; }
+  .weather-forecast-emoji { font-size: 1.5rem; min-width: 1.8rem; }
   .history-title-row {
     align-items: stretch;
     flex-direction: column;
