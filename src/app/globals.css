@@ -1,5 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Doto:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Share+Tech+Mono&display=swap');
 
+/* ==========================================================================
+   ARCHIPELAGO WEATHER STATION - GLOBAL STYLES
+   --------------------------------------------------------------------------
+   SECTION LEGEND
+   1) Foundation: tokens, reset, base layout
+   2) Dashboard chrome: brand/header/meta
+   3) Forecast banner
+   4) 3x3 OLED panel grid
+   5) Trend system: bars + square matrix graph
+   6) System diagnostics footer cards
+   7) Insights blocks
+   8) History page
+   9) Admin page
+   10) Responsive overrides
+
+   CLASS PREFIX LEGEND
+   - station-*            : dashboard shell, header and top metadata row
+   - forecast-*           : forecast emoji + summary box
+   - oled-*               : 3x3 telemetry panels
+   - trend-*              : trend labels, progress bars, matrix graph
+   - system-diagnostics-* : diagnostics cards under the grid
+
+   NOTE ON ALIASES
+   New semantic selectors are paired with legacy ones (e.g. .station-header,
+   .topbar) so History/Admin pages keep working during migration.
+   ========================================================================== */
+
+/* 1) FOUNDATION: theme tokens, font weights, and matrix square controls. */
 :root {
   color-scheme: light;
   --bg: #f6f7f9;
@@ -14,6 +42,9 @@
   --green: #16763a;
   --red: #c83f3f;
   --warn: #9a6700;
+  --doto-semibold: 700;
+  --doto-bold: 800;
+  --doto-black: 900;
   --matrix-square-size: 3px;
   --matrix-square-gap: 2px;
   --matrix-square-step: calc(var(--matrix-square-size) + var(--matrix-square-gap));
@@ -21,6 +52,7 @@
 
 * { box-sizing: border-box; }
 
+/* Base document defaults used by every page. */
 html,
 body {
   margin: 0;
@@ -40,21 +72,25 @@ main {
   overflow-x: hidden;
 }
 
+/* 2) DASHBOARD CHROME: wrapper, top header, links, status, and meta strip. */
+.station-dashboard,
 .dashboard-shell {
   position: relative;
   padding-top: 1rem;
 }
 
+.station-header,
 .topbar {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 1rem;
+  gap: 1.2rem;
   margin-bottom: 0.8rem;
   padding: 0 0 0.75rem;
   border-bottom: 1px solid var(--border);
 }
 
+.station-brand-stack,
 .brand-stack {
   display: flex;
   flex-direction: column;
@@ -63,12 +99,19 @@ main {
 }
 
 .brand {
-  font-size: 0.78rem;
-  letter-spacing: 0.1em;
+  font-family: 'Doto';
+  font-weight: var(--doto-semibold);
+  font-size: 2rem;
+  letter-spacing: 0.05rem;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text);
 }
 
+.station-brand-word {
+  font-weight: var(--doto-black);
+}
+
+.station-dashboard h1,
 .dashboard-shell h1 {
   margin: 0;
   font-size: clamp(1.6rem, 4vw, 2.2rem);
@@ -77,83 +120,101 @@ main {
   color: var(--text);
 }
 
+.station-dashboard h1 em,
 .dashboard-shell h1 em {
   font-style: normal;
   color: var(--accent);
 }
 
+.station-header-actions,
 .admin-top-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
+.station-nav-link,
 .toplink,
+.station-status,
 .status-pill {
+  font-family: 'Doto';
+  font-weight: var(--doto-semibold);
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
   text-decoration: none;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.7rem;
+  font-size: 1rem;
   padding: 0;
 }
 
+.station-nav-link:hover,
 .toplink:hover {
   color: var(--accent);
 }
 
+.station-status.online,
 .status-pill.online {
   color: var(--green);
 }
 
+.station-status.error,
 .status-pill.error {
   color: var(--red);
 }
 
+.station-status.waiting,
 .status-pill.waiting {
   color: var(--warn);
 }
 
+.station-meta-strip,
 .meta-row {
+  font-family: 'Doto';
   display: flex;
   flex-wrap: wrap;
-  gap: 0.95rem;
-  margin-bottom: 0.7rem;
-  font-size: 0.72rem;
-  color: var(--muted);
+  gap: 2rem;
+  margin-bottom: 0.6rem;
+  font-size: 1rem;
+  font-weight: var(--doto-semibold);
+  color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
+.station-meta-strip strong,
 .meta-row strong {
-  margin-left: 0.3rem;
-  color: var(--text);
-  font-weight: 600;
+  color: var(--accent);
+  font-family: 'Doto';
+  font-weight: var(--doto-black);
   text-transform: none;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.08em;
 }
 
+/* 3) FORECAST BANNER: emoji + short forecast sentence on a black display row. */
+.forecast-banner,
 .weather-forecast {
   margin-bottom: 0.9rem;
   padding: 0.25rem 0;
 }
 
+.forecast-banner-text,
 .weather-forecast-text {
   margin: 0;
-  font-family: 'Doto', 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: 0.1rem;
+  font-family: 'Doto';
+  font-size: 1.5rem;
+  font-weight: var(--doto-bold);
+  letter-spacing: 0.08rem;
   color: #ffffff;
-  line-height: 1.45;
+  line-height: 1.2;
 }
 
+.forecast-banner-display,
 .weather-forecast-box {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.65rem;
+  gap: 0.75rem;
   align-items: center;
   width: 100%;
   border: 1px solid #2f2f2f;
@@ -162,27 +223,33 @@ main {
   padding: 0.45rem 0.55rem;
 }
 
+.forecast-banner-emoji,
 .weather-forecast-emoji {
   display: inline-flex;
   align-items: center;
+  margin: 5px;
   justify-content: center;
   min-width: 2.1rem;
-  font-size: 1.7rem;
+  font-size: 3rem;
   line-height: 1;
 }
 
+/* 4) 3x3 OLED GRID: panel container and panel-level text/pixel styling. */
+.oled-grid-frame,
 .grid-frame {
   margin-bottom: 1.25rem;
 }
 
+.oled-grid-3x3,
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.6rem;
+  gap: 0.9rem;
   background: transparent;
   border: 0;
 }
 
+.oled-panel,
 .tile {
   position: relative;
   min-width: 0;
@@ -196,28 +263,35 @@ main {
   overflow: hidden;
 }
 
+.oled-panel.live,
+.oled-panel.offline,
 .tile.live,
 .tile.offline {
   border-color: #3a3a3a;
 }
 
+.oled-panel.offline,
 .tile.offline {
   opacity: 0.65;
 }
 
+.oled-panel::before,
 .tile::before {
   content: none;
 }
 
+.oled-panel::after,
 .tile::after {
   content: none;
 }
 
+.oled-panel > *,
 .tile > * {
   position: relative;
   z-index: 1;
 }
 
+.oled-panel-head,
 .tile-top {
   display: flex;
   align-items: center;
@@ -225,6 +299,7 @@ main {
   margin-bottom: 0.28rem;
 }
 
+.oled-channel-id,
 .tile-channel {
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.66rem;
@@ -233,6 +308,7 @@ main {
   color: #8a8a8a;
 }
 
+.oled-panel-label,
 .tile-label {
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
@@ -245,6 +321,7 @@ main {
   text-overflow: ellipsis;
 }
 
+.oled-status-pixel,
 .tile-dot {
   width: 0.42rem;
   height: 0.42rem;
@@ -253,11 +330,13 @@ main {
   background: #d1d5db;
 }
 
+.oled-status-pixel.live,
 .tile-dot.live {
   background: #ffffff;
   box-shadow: none;
 }
 
+.oled-main-value,
 .tile-value {
   margin-top: 0.05rem;
   margin-bottom: 0.25rem;
@@ -274,10 +353,13 @@ main {
   text-overflow: ellipsis;
 }
 
+.oled-main-value.dim,
 .tile-value.dim {
   color: #7f7f7f;
 }
 
+/* 5) TREND SYSTEM: square-dot progress bars, trend labels, and matrix graph. */
+.oled-progress-bar,
 .tile-meter {
   height: var(--matrix-square-size);
   border: 0;
@@ -290,6 +372,7 @@ main {
   );
 }
 
+.oled-progress-bar span,
 .tile-meter span {
   display: block;
   height: 100%;
@@ -300,6 +383,7 @@ main {
   );
 }
 
+.oled-trend-stack,
 .tile-trend {
   display: grid;
   grid-template-rows: auto 1fr;
@@ -308,11 +392,13 @@ main {
   flex: 1;
 }
 
+.forecast-trend-stack,
 .forecast-trend {
   grid-template-rows: auto auto 1fr;
   gap: 0.22rem;
 }
 
+.forecast-confidence-row,
 .forecast-conf-row {
   display: flex;
   justify-content: space-between;
@@ -320,16 +406,21 @@ main {
   gap: 0.35rem;
 }
 
+.forecast-confidence-bar,
 .forecast-meter {
   margin-bottom: 0;
 }
 
+.forecast-driver-list,
 .forecast-drivers {
   display: grid;
   gap: 0.14rem;
   align-content: start;
 }
 
+.forecast-driver-list .trend-readout,
+.forecast-driver-list .delta,
+.forecast-drivers .trend-readout,
 .forecast-drivers .delta {
   font-size: 0.8rem;
   letter-spacing: 0.06em;
@@ -339,6 +430,7 @@ main {
   text-overflow: ellipsis;
 }
 
+.trend-readout,
 .delta {
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.82rem;
@@ -350,20 +442,26 @@ main {
   color: #b0b0b0;
 }
 
+.trend-readout.up,
+.trend-readout.down,
+.trend-readout.flat,
 .delta.up,
 .delta.down,
 .delta.flat {
   color: var(--muted);
 }
 
+.trend-readout.up,
 .delta.up {
   color: var(--green);
 }
 
+.trend-readout.down,
 .delta.down {
   color: var(--red);
 }
 
+.trend-matrix-graph,
 .spark-matrix {
   display: grid;
   width: 100%;
@@ -374,10 +472,12 @@ main {
   align-content: start;
 }
 
+.trend-matrix-graph.live,
 .spark-matrix.live {
   color: #ffffff;
 }
 
+.matrix-square,
 .spark-dot {
   width: var(--matrix-square-size);
   height: var(--matrix-square-size);
@@ -385,10 +485,12 @@ main {
   background: #000000;
 }
 
+.matrix-square.on,
 .spark-dot.on {
   background: #ffffff;
 }
 
+.trend-graph-wrap,
 .tile-spark-wrap {
   border: 0;
   background: transparent;
@@ -399,6 +501,7 @@ main {
   align-items: stretch;
 }
 
+.oled-secondary-line,
 .tile-secondary {
   margin-top: 0.25rem;
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -412,11 +515,15 @@ main {
   text-overflow: ellipsis;
 }
 
+/* 6) SYSTEM DIAGNOSTICS: bottom black cards + sensor state chips. */
+.system-diagnostics,
 .health {
   margin-top: 0;
 }
 
+.system-diagnostics-title,
 .health-title {
+  font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.75rem;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -424,6 +531,7 @@ main {
   margin-bottom: 0.5rem;
 }
 
+.system-diagnostics-grid,
 .health-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -432,40 +540,51 @@ main {
   border: 0;
 }
 
+.system-diagnostics-box,
 .health-cell {
-  border: 1px solid var(--border);
+  border: 1px solid #2f2f2f;
   border-radius: 6px;
-  background: var(--surface);
+  background: #000000;
   padding: 0.55rem 0.62rem;
 }
 
+.system-diagnostics-label,
 .health-label {
+  font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--muted);
+  color: #98a6b8;
   margin-bottom: 0.24rem;
 }
 
+.system-diagnostics-value,
 .health-value {
-  font-size: 1rem;
-  color: var(--text);
+  font-family: 'Doto', 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #ffffff;
   overflow-wrap: anywhere;
 }
 
+.system-diagnostics-subvalue,
 .health-sub {
-  color: var(--muted);
-  font-size: 0.75rem;
+  color: #c0ccda;
+  font-size: 0.78rem;
 }
 
+.status-ok-text,
 .ok-text {
-  color: var(--text);
+  color: #ffffff;
 }
 
+.status-dim-text,
 .dim-text {
-  color: var(--muted);
+  color: #90a0b4;
 }
 
+.sensor-status-row,
 .sensor-row {
   display: flex;
   flex-wrap: wrap;
@@ -473,29 +592,34 @@ main {
   margin-top: 0.55rem;
 }
 
+.sensor-status-chip,
 .sensor-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+  border: 1px solid #2f2f2f;
+  border-radius: 4px;
+  background: #000000;
+  font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #9ca9bb;
 }
 
+.sensor-status-chip.ok,
 .sensor-chip.ok {
-  color: var(--text);
+  color: #ffffff;
 }
 
+.sensor-status-chip.bad,
 .sensor-chip.bad {
   opacity: 0.7;
 }
 
 /* ── INSIGHTS ── */
+/* Compact KPI tiles used for derived weather insights on dashboard/history. */
 
 .insights {
   margin-bottom: 1.5rem;
@@ -558,6 +682,7 @@ main {
 }
 
 /* ── FOOTER INSIGHTS ── */
+/* Optional repeated insight strip near page footer. */
 
 .footer-insights {
   margin-top: 2.5rem;
@@ -618,15 +743,19 @@ main {
 }
 
 /* ── HISTORY ── */
+/* History page layout, chart styles, and series/stat cards. */
 
+.history-lab-page,
 .history-page {
   width: min(1180px, 100%);
 }
 
+.history-lab-page .brand,
 .history-page .brand {
   text-decoration: none;
 }
 
+.history-lab-toolbar,
 .history-title-row {
   display: flex;
   align-items: flex-start;
@@ -634,6 +763,11 @@ main {
   gap: 1rem;
 }
 
+.history-lab-toolbar {
+  justify-content: flex-end;
+}
+
+.history-range-selector,
 .range-control {
   display: inline-grid;
   grid-auto-flow: column;
@@ -643,13 +777,15 @@ main {
   min-height: 2.35rem;
 }
 
+.history-range-selector button,
 .range-control button,
+.history-series-tabs button,
 .series-tabs button {
   border: 0;
   background: var(--surface);
   color: var(--muted);
   cursor: pointer;
-  font: inherit;
+  font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -658,12 +794,15 @@ main {
   text-transform: uppercase;
 }
 
+.history-range-selector button.active,
 .range-control button.active,
+.history-series-tabs button.active,
 .series-tabs button.active {
   background: var(--text);
   color: var(--surface);
 }
 
+.history-lab-board,
 .history-board {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
@@ -671,6 +810,7 @@ main {
   margin-bottom: 1rem;
 }
 
+.history-lab-panel,
 .history-panel {
   min-width: 0;
   border: 1px solid var(--border);
@@ -678,6 +818,7 @@ main {
   padding: 1.1rem;
 }
 
+.history-panel-header,
 .history-panel-head {
   display: flex;
   align-items: flex-start;
@@ -686,18 +827,21 @@ main {
   margin-bottom: 1rem;
 }
 
+.history-panel-header h2,
 .history-panel-head h2 {
   margin: 0 0 0.25rem;
   font-size: 1rem;
   font-weight: 500;
 }
 
+.history-panel-header p,
 .history-panel-head p {
   margin: 0;
   color: var(--muted);
   font-size: 0.78rem;
 }
 
+.history-series-status,
 .series-status {
   border: 1px solid var(--border);
   border-radius: 2px;
@@ -710,11 +854,13 @@ main {
   text-transform: uppercase;
 }
 
+.history-series-status.online,
 .series-status.online {
   color: var(--green);
   border-color: rgba(22, 118, 58, 0.35);
 }
 
+.history-series-tabs,
 .series-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -726,11 +872,13 @@ main {
   overflow: auto;
 }
 
+.history-series-tabs button,
 .series-tabs button {
   min-height: 2.1rem;
   min-width: 6rem;
 }
 
+.history-series-chart,
 .history-chart {
   display: block;
   width: 100%;
@@ -739,21 +887,25 @@ main {
   overflow: visible;
 }
 
+.history-series-grid-line,
 .history-grid-line {
   stroke: var(--border);
   stroke-width: 1;
 }
 
+.history-series-axis-label,
 .history-axis-label {
   fill: var(--muted);
   font-size: 10px;
   letter-spacing: 0;
 }
 
+.history-series-area,
 .history-area {
   fill: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.history-series-line,
 .history-line {
   fill: none;
   stroke: currentColor;
@@ -762,12 +914,77 @@ main {
   stroke-width: 2.2;
 }
 
+.history-series-last-dot,
 .history-last-dot {
   fill: var(--surface);
   stroke: currentColor;
   stroke-width: 2;
 }
 
+/* Graph-only display styling for history page */
+/* Keeps only the history chart panel in display mode while rest stays light. */
+.history-chart-panel .history-series-chart,
+.history-chart-panel .history-chart,
+.chart-panel .history-series-chart,
+.chart-panel .history-chart {
+  background: #000000;
+  border: 1px solid #2f2f2f;
+}
+
+.history-chart-panel .history-series-grid-line,
+.history-chart-panel .history-grid-line,
+.chart-panel .history-series-grid-line,
+.chart-panel .history-grid-line {
+  stroke: rgba(255, 255, 255, 0.16);
+  shape-rendering: crispEdges;
+}
+
+.history-chart-panel .history-series-axis-label,
+.history-chart-panel .history-axis-label,
+.chart-panel .history-series-axis-label,
+.chart-panel .history-axis-label {
+  fill: #9aabbe;
+  font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.03em;
+}
+
+.history-chart-panel .history-series-area,
+.history-chart-panel .history-area,
+.chart-panel .history-series-area,
+.chart-panel .history-area {
+  fill: color-mix(in srgb, #ffffff 9%, transparent);
+}
+
+.history-chart-panel .history-series-line,
+.history-chart-panel .history-line,
+.chart-panel .history-series-line,
+.chart-panel .history-line {
+  stroke: #ffffff;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 2;
+  shape-rendering: crispEdges;
+}
+
+.history-chart-panel .history-series-last-dot,
+.history-chart-panel .history-last-dot,
+.chart-panel .history-series-last-dot,
+.chart-panel .history-last-dot {
+  fill: #ffffff;
+  stroke: none;
+}
+
+.history-chart-panel .history-series-empty,
+.history-chart-panel .history-empty,
+.chart-panel .history-series-empty,
+.chart-panel .history-empty {
+  background: #000000;
+  border-color: #2f2f2f;
+  color: #93a1b2;
+  font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.history-series-empty,
 .history-empty {
   align-items: center;
   aspect-ratio: 760 / 300;
@@ -779,6 +996,7 @@ main {
   min-height: 220px;
 }
 
+.history-station-list,
 .insight-list {
   display: grid;
   gap: 1px;
@@ -786,6 +1004,7 @@ main {
   border: 1px solid var(--border);
 }
 
+.history-station-list div,
 .insight-list div {
   display: flex;
   align-items: center;
@@ -796,7 +1015,9 @@ main {
   padding: 0.75rem;
 }
 
+.history-station-list span,
 .insight-list span,
+.history-selected-stat span,
 .history-stat span {
   color: var(--muted);
   font-size: 0.68rem;
@@ -805,6 +1026,7 @@ main {
   text-transform: uppercase;
 }
 
+.history-station-list strong,
 .insight-list strong {
   color: var(--text);
   font-size: 0.86rem;
@@ -812,6 +1034,7 @@ main {
   text-align: right;
 }
 
+.history-derived-grid,
 .derived-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -821,12 +1044,14 @@ main {
   margin-top: 1rem;
 }
 
+.history-derived-grid div,
 .derived-list div {
   background: var(--surface);
   min-width: 0;
   padding: 0.75rem;
 }
 
+.history-lab-report,
 .history-report {
   border-top: 1px solid var(--border);
   color: var(--text);
@@ -836,6 +1061,7 @@ main {
   padding-top: 1rem;
 }
 
+.history-selected-stat-grid,
 .history-stat-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -845,12 +1071,14 @@ main {
   margin-bottom: 1rem;
 }
 
+.history-selected-stat,
 .history-stat {
   background: var(--surface);
   min-width: 0;
   padding: 0.9rem 1rem;
 }
 
+.history-selected-stat strong,
 .history-stat strong {
   color: var(--text);
   display: block;
@@ -860,9 +1088,12 @@ main {
   overflow-wrap: anywhere;
 }
 
+.history-selected-stat.up strong,
 .history-stat.up strong { color: var(--green); }
+.history-selected-stat.down strong,
 .history-stat.down strong { color: var(--red); }
 
+.history-series-summary-grid,
 .series-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -871,6 +1102,7 @@ main {
   border: 1px solid var(--border);
 }
 
+.history-series-card,
 .series-summary {
   background: var(--surface);
   min-height: 132px;
@@ -878,6 +1110,7 @@ main {
   padding: 1rem;
 }
 
+.history-series-card-value,
 .series-summary-value {
   color: var(--text);
   font-size: 1.35rem;
@@ -886,6 +1119,7 @@ main {
   overflow-wrap: anywhere;
 }
 
+.history-series-card-meta,
 .series-summary-meta {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -895,15 +1129,18 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
+.history-series-card-meta span:nth-child(2),
 .series-summary-meta span:nth-child(2) {
   text-align: center;
 }
 
+.history-series-card-meta span:last-child,
 .series-summary-meta span:last-child {
   text-align: right;
 }
 
 /* ── ADMIN ── */
+/* Admin console forms, alerts timeline, and firmware/config cards. */
 
 .admin-page {
   width: min(1160px, 100%);
@@ -1353,20 +1590,27 @@ main {
 }
 
 /* ── RESPONSIVE ── */
+/* Breakpoint-specific sizing so dashboard stays readable on phone/tablet. */
 
 @media (max-width: 760px) {
+  .station-header,
   .topbar {
     align-items: flex-start;
     flex-direction: column;
   }
+  .station-header-actions,
   .admin-top-actions {
     width: 100%;
     flex-wrap: wrap;
   }
+  .system-diagnostics-grid,
   .health-grid { grid-template-columns: repeat(2, 1fr); }
   .insight-strip { grid-template-columns: repeat(3, 1fr); }
+  .history-lab-board,
   .history-board { grid-template-columns: 1fr; }
+  .history-selected-stat-grid,
   .history-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .history-series-summary-grid,
   .series-summary-grid { grid-template-columns: repeat(2, 1fr); }
   .alert-grid { grid-template-columns: repeat(2, 1fr); }
   .admin-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1375,27 +1619,45 @@ main {
 
 @media (max-width: 640px) {
   main { padding: 0 0.5rem 2rem; }
+  .oled-panel,
   .tile { border-radius: 6px; padding: 0.44rem 0.5rem 0.54rem; min-height: 186px; }
+  .oled-main-value,
   .tile-value { font-size: 1.78rem; }
+  .oled-panel-label,
   .tile-label { font-size: 0.74rem; }
+  .trend-readout,
   .delta { font-size: 0.72rem; }
+  .forecast-driver-list .trend-readout,
   .forecast-drivers .delta { font-size: 0.72rem; }
+  .oled-secondary-line,
   .tile-secondary { font-size: 0.64rem; }
+  .trend-graph-wrap,
   .tile-spark-wrap { min-height: 2.1rem; }
+  .station-meta-strip,
   .meta-row { gap: 0.45rem; }
+  .forecast-banner-display,
   .weather-forecast-box { gap: 0.5rem; }
+  .forecast-banner-text,
   .weather-forecast-text { font-size: 0.95rem; }
+  .forecast-banner-emoji,
   .weather-forecast-emoji { font-size: 1.5rem; min-width: 1.8rem; }
+  .history-lab-toolbar,
   .history-title-row {
     align-items: stretch;
     flex-direction: column;
   }
+  .history-range-selector,
   .range-control { width: 100%; }
+  .history-range-selector button,
   .range-control button { min-width: 0; }
   .insight-strip,
+  .history-derived-grid,
   .derived-list { grid-template-columns: repeat(2, 1fr); }
+  .history-series-tabs,
   .series-tabs { max-height: 9.5rem; }
+  .history-selected-stat-grid,
   .history-stat-grid,
+  .history-series-summary-grid,
   .series-summary-grid { grid-template-columns: 1fr; }
   .alert-grid { grid-template-columns: 1fr; }
   .event-head {
@@ -1416,7 +1678,9 @@ main {
 }
 
 @media (max-width: 380px) {
+  .system-diagnostics-grid,
   .health-grid { grid-template-columns: 1fr; }
   .insight-strip,
+  .history-derived-grid,
   .derived-list { grid-template-columns: 1fr; }
 }

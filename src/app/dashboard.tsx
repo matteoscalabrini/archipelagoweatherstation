@@ -4,6 +4,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { deriveWeatherInsights } from "@/lib/insights";
 import type { WeatherStationTelemetry } from "@/lib/telemetry";
 
+/* ==========================================================================
+   DASHBOARD FILE LEGEND
+   --------------------------------------------------------------------------
+   1) API/telemetry types
+   2) Mock telemetry generators (fallback when station is offline)
+   3) Display formatting helpers
+   4) Signal scaling helpers (value -> percentage bars)
+   5) Trend + forecast driver math
+   6) Weather emoji selector
+   7) Sparkline matrix renderer
+   8) Main Dashboard component and UI sections
+   ========================================================================== */
+
+/* 1) API/telemetry types used by fetch responses and sparkline points. */
 type LatestResponse = {
   success: boolean;
   connected: boolean;
@@ -17,6 +31,7 @@ type HistoryResponse = {
 
 type Point = { t: number; v: number };
 
+/* 2) Mock history stream for local/dev fallback rendering. */
 function generateMockHistory(count: number): WeatherStationTelemetry[] {
   const now = Date.now();
   const history: WeatherStationTelemetry[] = [];
@@ -54,6 +69,7 @@ function generateMockHistory(count: number): WeatherStationTelemetry[] {
   return history;
 }
 
+/* Single-snapshot mock payload for latest telemetry fallback. */
 function generateMockTelemetry(): WeatherStationTelemetry {
   const now = new Date().toISOString();
   return {
@@ -78,6 +94,7 @@ function generateMockTelemetry(): WeatherStationTelemetry {
   };
 }
 
+/* 3) Formatting helpers for readable UI text values. */
 function fmt(value: number | string | null | undefined, unit?: string) {
   if (value === null || value === undefined || value === "") return "--";
   return `${value}${unit ? ` ${unit}` : ""}`;
@@ -116,6 +133,7 @@ function solarLabel(mode?: string) {
   }
 }
 
+/* 4) Numeric parsing + scaling helpers for progress bars and normalization. */
 function toNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string") {
@@ -145,6 +163,7 @@ function signalPercent(
   const channel = (label ?? "").toUpperCase();
   const normalized = (unit ?? "").toLowerCase();
 
+  // Channel-specific expected ranges.
   if (channel.includes("TEMP")) {
     if (normalized.includes("f")) return scaleToPercent((n - 32) * (5 / 9), -10, 40);
     return scaleToPercent(n, -10, 40);
@@ -171,6 +190,7 @@ function signalPercent(
   return null;
 }
 
+/* 5) Series extraction + trend deltas used by panel sparkline + forecast logic. */
 function extractSeries(history: WeatherStationTelemetry[], label: string): Point[] {
   const points: Point[] = [];
   for (const snap of history) {
@@ -203,6 +223,7 @@ type ForecastDrivers = {
   confidencePct: number | null;
 };
 
+/* Forecast confidence score from pressure/humidity/wind trend alignment. */
 function forecastConfidence(
   forecastState: string,
   pressureDelta: number | null,
@@ -231,6 +252,7 @@ function forecastConfidence(
   return clamp(Math.round(score), 5, 99);
 }
 
+/* Collects the three trend drivers rendered inside the forecast tile. */
 function buildForecastDrivers(
   forecastState: string,
   history: WeatherStationTelemetry[]
@@ -257,6 +279,7 @@ function signed(value: number | null, digits = 2) {
   return `${sign}${value.toFixed(digits)}`;
 }
 
+/* 6) Lightweight weather icon from current conditions + pressure trend. */
 function weatherEmoji(tempC: number | null, humidity: number | null, pressureDelta: number | null) {
   if (tempC === null) return "🌡️";
   if (pressureDelta !== null && pressureDelta <= -1.5 && (humidity ?? 0) > 80) return "⛈️";
@@ -267,6 +290,7 @@ function weatherEmoji(tempC: number | null, humidity: number | null, pressureDel
   return "⛅";
 }
 
+/* 7) Matrix sparkline renderer used by non-forecast panels. */
 function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [grid, setGrid] = useState({ columns: 24, rows: 8 });
@@ -277,6 +301,7 @@ function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
     const element = host;
 
     function updateGrid(width: number, height: number) {
+      // Keep graph density tied to CSS square size/gap for visual consistency.
       const style = getComputedStyle(element);
       const square = parseFloat(style.getPropertyValue("--matrix-square-size")) || 3;
       const gap = parseFloat(style.getPropertyValue("--matrix-square-gap")) || 2;
@@ -373,7 +398,7 @@ function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
   return (
     <div
       ref={hostRef}
-      className={`spark-matrix ${live ? "live" : ""}`}
+      className={`trend-matrix-graph ${live ? "live" : ""}`}
       style={{
         gridTemplateColumns: `repeat(${grid.columns}, var(--matrix-square-size))`,
         gridTemplateRows: `repeat(${grid.rows}, var(--matrix-square-size))`
@@ -382,7 +407,7 @@ function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
       {dots.map((dot) => (
         <span
           key={dot.key}
-          className="spark-dot on"
+          className="matrix-square on"
           style={{ gridColumnStart: dot.col + 1, gridRowStart: dot.row + 1 }}
         />
       ))}
@@ -390,6 +415,7 @@ function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
   );
 }
 
+/* 8) Main dashboard: data polling + derived values + display rendering. */
 export default function Dashboard() {
   const [telemetry, setTelemetry] = useState<WeatherStationTelemetry | null>(null);
   const [history, setHistory] = useState<WeatherStationTelemetry[]>([]);
@@ -425,6 +451,7 @@ export default function Dashboard() {
     }
 
     load();
+    // Poll station APIs every 10s for near-live dashboard updates.
     const t = window.setInterval(load, 10000);
     return () => {
       cancelled = true;
@@ -442,26 +469,28 @@ export default function Dashboard() {
   const wxIcon = weatherEmoji(insights.temperatureC, insights.humidityPct, insights.pressureDeltaHpa);
 
   return (
-    <main className="dashboard-shell">
-      <nav className="topbar">
-        <div className="brand-stack">
-          <span className="brand">Archipelago</span>
+    <main className="station-dashboard">
+      {/* Header: brand, navigation, and online/error state */}
+      <nav className="station-header">
+        <div className="station-brand-stack">
+          <span className="brand station-brand-word">Archipelago</span>
           <h1>
-            Archipelago <em>Weather Station</em>
+            <em>Weather Station</em>
           </h1>
         </div>
-        <div className="admin-top-actions">
-          <a className="toplink" href="/history">
+        <div className="station-header-actions">
+          <a className="station-nav-link" href="/history">
             History
           </a>
-          <a className="toplink" href="/admin">
+          <a className="station-nav-link" href="/admin">
             Admin
           </a>
-          <span className={`status-pill ${status}`}>{error || (connected ? "Online" : "Waiting")}</span>
+          <span className={`station-status ${status}`}>{error || (connected ? "Online" : "Waiting")}</span>
         </div>
       </nav>
 
-      <div className="meta-row">
+      {/* Meta strip: compact station context row */}
+      <div className="station-meta-strip">
         <span>
           Mode <strong>{solarLabel(telemetry?.solarMode)}</strong>
         </span>
@@ -479,15 +508,17 @@ export default function Dashboard() {
         </span>
       </div>
 
-      <section className="weather-forecast" aria-label="Weather forecast">
-        <div className="weather-forecast-box">
-          <span className="weather-forecast-emoji" aria-hidden>{wxIcon}</span>
-          <p className="weather-forecast-text">{insights.summary}</p>
+      {/* Forecast banner: emoji + sentence summary */}
+      <section className="forecast-banner" aria-label="Weather forecast">
+        <div className="forecast-banner-display">
+          <span className="forecast-banner-emoji" aria-hidden>{wxIcon}</span>
+          <p className="forecast-banner-text">{insights.summary}</p>
         </div>
       </section>
 
-      <section className="grid-frame" aria-label="OLED matrix frame">
-        <div className="grid" aria-label="Sensor readings">
+      {/* Core telemetry: 3x3 OLED-inspired panel grid */}
+      <section className="oled-grid-frame" aria-label="OLED matrix frame">
+        <div className="oled-grid-3x3" aria-label="Sensor readings">
           {Array.from({ length: 9 }).map((_, i) => {
             const d = displays[i];
             const series = d?.label ? extractSeries(orderedHistory, d.label) : [];
@@ -506,68 +537,71 @@ export default function Dashboard() {
             const forecastDrivers = isForecastTile ? buildForecastDrivers(String(d?.primary ?? ""), orderedHistory) : null;
 
             return (
-              <article className={`tile ${d?.online ? "live" : "offline"}`} key={i}>
-                <div className="tile-top">
-                  <span className="tile-channel">CH-{String(i + 1).padStart(2, "0")}</span>
-                  <span className="tile-label">{d?.label ?? `CHANNEL ${i + 1}`}</span>
-                  <div className={`tile-dot ${d?.online ? "live" : ""}`} />
+              <article className={`oled-panel ${d?.online ? "live" : "offline"}`} key={i}>
+                <div className="oled-panel-head">
+                  <span className="oled-channel-id">CH-{String(i + 1).padStart(2, "0")}</span>
+                  <span className="oled-panel-label">{d?.label ?? `CHANNEL ${i + 1}`}</span>
+                  <div className={`oled-status-pixel ${d?.online ? "live" : ""}`} />
                 </div>
 
-                <div className={`tile-value ${d?.online ? "" : "dim"}`}>{fmt(d?.primary, d?.primaryUnit)}</div>
+                <div className={`oled-main-value ${d?.online ? "" : "dim"}`}>{fmt(d?.primary, d?.primaryUnit)}</div>
 
                 {signal !== null && (
-                  <div className="tile-meter" aria-label="Signal level">
+                  <div className="oled-progress-bar" aria-label="Signal level">
                     <span style={{ width: `${signal.toFixed(0)}%` }} />
                   </div>
                 )}
 
                 {isForecastTile ? (
-                  <div className="tile-trend forecast-trend">
-                    <div className="forecast-conf-row">
-                      <span className="delta">CONF</span>
-                      <span className="delta">
+                  // Forecast panel is driver-based, not sparkline-based.
+                  <div className="oled-trend-stack forecast-trend-stack">
+                    <div className="forecast-confidence-row">
+                      <span className="trend-readout">CONF</span>
+                      <span className="trend-readout">
                         {forecastDrivers?.confidencePct !== null ? `${forecastDrivers?.confidencePct}%` : "--"}
                       </span>
                     </div>
-                    <div className="tile-meter forecast-meter" aria-label="Forecast confidence">
+                    <div className="oled-progress-bar forecast-confidence-bar" aria-label="Forecast confidence">
                       <span style={{ width: `${forecastDrivers?.confidencePct ?? 0}%` }} />
                     </div>
-                    <div className="forecast-drivers">
-                      <span className="delta">PRES {signed(forecastDrivers?.pressureDelta ?? null)} hPa /3H</span>
-                      <span className="delta">HUM {signed(forecastDrivers?.humidityDelta ?? null)} % /1H</span>
-                      <span className="delta">WIND {signed(forecastDrivers?.windDelta ?? null)} m/s /1H</span>
+                    <div className="forecast-driver-list">
+                      <span className="trend-readout">PRES {signed(forecastDrivers?.pressureDelta ?? null)} hPa /3H</span>
+                      <span className="trend-readout">HUM {signed(forecastDrivers?.humidityDelta ?? null)} % /1H</span>
+                      <span className="trend-readout">WIND {signed(forecastDrivers?.windDelta ?? null)} m/s /1H</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="tile-trend">
-                    <span className={`delta ${deltaState}`}>{deltaText}</span>
-                    <div className="tile-spark-wrap">
+                  // Standard panels show 1h trend text + matrix sparkline.
+                  <div className="oled-trend-stack">
+                    <span className={`trend-readout ${deltaState}`}>{deltaText}</span>
+                    <div className="trend-graph-wrap">
                       <Sparkline points={series} live={d?.online} />
                     </div>
                   </div>
                 )}
 
-                <div className="tile-secondary">{secondary === "--" ? "AUX --" : secondary}</div>
+                <div className="oled-secondary-line">{secondary === "--" ? "AUX --" : secondary}</div>
               </article>
             );
           })}
         </div>
       </section>
 
-      <section className="health" aria-label="System health">
-        <div className="health-title">System Diagnostics</div>
-        <div className="health-grid">
-          <div className="health-cell">
-            <div className="health-label">Solar Mode</div>
-            <div className="health-value">{solarLabel(telemetry?.solarMode)}</div>
+      {/* System diagnostics: mode, uptime, network, posting + sensor status chips */}
+      <section className="system-diagnostics" aria-label="System health">
+        <div className="system-diagnostics-title">System Diagnostics</div>
+        <div className="system-diagnostics-grid">
+          <div className="system-diagnostics-box">
+            <div className="system-diagnostics-label">Solar Mode</div>
+            <div className="system-diagnostics-value">{solarLabel(telemetry?.solarMode)}</div>
           </div>
-          <div className="health-cell">
-            <div className="health-label">Uptime</div>
-            <div className="health-value">{uptime(telemetry?.uptimeMs)}</div>
+          <div className="system-diagnostics-box">
+            <div className="system-diagnostics-label">Uptime</div>
+            <div className="system-diagnostics-value">{uptime(telemetry?.uptimeMs)}</div>
           </div>
-          <div className="health-cell">
-            <div className="health-label">Network</div>
-            <div className="health-value">
+          <div className="system-diagnostics-box">
+            <div className="system-diagnostics-label">Network</div>
+            <div className="system-diagnostics-value">
               {telemetry?.wifi?.sta
                 ? "Station"
                 : telemetry?.wifi?.recoveryAp
@@ -575,25 +609,27 @@ export default function Dashboard() {
                   : telemetry?.wifi?.ap
                     ? "Access Point"
                     : "Offline"}
-              {telemetry?.wifi?.ip && <span className="health-sub"> | {telemetry.wifi.ip}</span>}
+              {telemetry?.wifi?.ip && <span className="system-diagnostics-subvalue"> | {telemetry.wifi.ip}</span>}
             </div>
           </div>
-          <div className="health-cell">
-            <div className="health-label">Last Post</div>
-            <div className="health-value">
-              <span className={telemetry?.wifi?.lastPostCode === 200 ? "ok-text" : "dim-text"}>
+          <div className="system-diagnostics-box">
+            <div className="system-diagnostics-label">Last Post</div>
+            <div className="system-diagnostics-value">
+              <span className={telemetry?.wifi?.lastPostCode === 200 ? "status-ok-text" : "status-dim-text"}>
                 {telemetry?.wifi?.lastPostCode ?? "--"}
               </span>
-              {telemetry?.wifi?.lastPostMessage && <span className="health-sub"> | {telemetry.wifi.lastPostMessage}</span>}
+              {telemetry?.wifi?.lastPostMessage && (
+                <span className="system-diagnostics-subvalue"> | {telemetry.wifi.lastPostMessage}</span>
+              )}
             </div>
           </div>
         </div>
 
         {sensorEntries.length > 0 && (
-          <div className="sensor-row">
+          <div className="sensor-status-row">
             {sensorEntries.map(([name, ok]) => (
-              <span key={name} className={`sensor-chip ${ok ? "ok" : "bad"}`}>
-                <span className={`tile-dot ${ok ? "live" : ""}`} />
+              <span key={name} className={`sensor-status-chip ${ok ? "ok" : "bad"}`}>
+                <span className={`oled-status-pixel ${ok ? "live" : ""}`} />
                 {name}
               </span>
             ))}

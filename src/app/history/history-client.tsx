@@ -4,6 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { deriveWeatherInsights } from "@/lib/insights";
 import type { DisplayReading, WeatherStationTelemetry } from "@/lib/telemetry";
 
+/* ==========================================================================
+   HISTORY FILE LEGEND
+   --------------------------------------------------------------------------
+   1) API and chart data types
+   2) Formatting helpers
+   3) Series/stat builders
+   4) History chart renderer
+   5) Main History component (fetch, derive, render)
+   ========================================================================== */
+
+/* 1) API and chart data types. */
 type HistoryResponse = {
   success: boolean;
   history: WeatherStationTelemetry[];
@@ -31,6 +42,7 @@ const ranges: Array<{ key: RangeKey; label: string; ms: number | null }> = [
   { key: "all", label: "All", ms: null }
 ];
 
+/* 2) Formatting helpers. */
 function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -167,6 +179,7 @@ function healthTone(latest?: WeatherStationTelemetry) {
   return "online";
 }
 
+/* 3) Series/stat builders. */
 function buildReport(series: Series | undefined, points: Point[], sampleCount: number) {
   if (!series || points.length < 2) return "Waiting for enough numeric telemetry to describe this window.";
   const s = stats(points);
@@ -178,6 +191,7 @@ function buildReport(series: Series | undefined, points: Point[], sampleCount: n
   return `${series.label} ${direction} ${fmt(Math.abs(s.delta ?? 0), series.unit)} across ${sampleCount} samples. Range ${fmt(s.min, series.unit)} to ${fmt(s.max, series.unit)}.`;
 }
 
+/* 4) History chart renderer (display-inspired chart panel). */
 function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
   const width = 760;
   const height = 300;
@@ -185,7 +199,7 @@ function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
 
   if (points.length < 2) {
     return (
-      <div className="history-empty">
+      <div className="history-series-empty">
         Waiting for enough samples.
       </div>
     );
@@ -216,27 +230,28 @@ function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
   const last = points[points.length - 1];
 
   return (
-    <svg className="history-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Selected sensor history chart">
+    <svg className="history-series-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Selected sensor history chart">
       {yTicks.map(value => (
         <g key={value}>
-          <line className="history-grid-line" x1={pad.left} y1={y(value)} x2={width - pad.right} y2={y(value)} />
-          <text className="history-axis-label" x={pad.left - 10} y={y(value) + 4} textAnchor="end">
+          <line className="history-series-grid-line" x1={pad.left} y1={y(value)} x2={width - pad.right} y2={y(value)} />
+          <text className="history-series-axis-label" x={pad.left - 10} y={y(value) + 4} textAnchor="end">
             {fmt(value, unit)}
           </text>
         </g>
       ))}
       {xTicks.map(value => (
-        <text className="history-axis-label" key={value} x={x(value)} y={height - 10} textAnchor="middle">
+        <text className="history-series-axis-label" key={value} x={x(value)} y={height - 10} textAnchor="middle">
           {timeLabel(value)}
         </text>
       ))}
-      <path className="history-area" d={area} />
-      <path className="history-line" d={path} />
-      <circle className="history-last-dot" cx={x(last.t)} cy={y(last.v)} r="4.5" />
+      <path className="history-series-area" d={area} />
+      <path className="history-series-line" d={path} />
+      <rect className="history-series-last-dot" x={x(last.t) - 2.5} y={y(last.v) - 2.5} width="5" height="5" />
     </svg>
   );
 }
 
+/* 5) Main history page component. */
 export default function HistoryClient() {
   const [history, setHistory] = useState<WeatherStationTelemetry[]>([]);
   const [range, setRange] = useState<RangeKey>("24h");
@@ -262,6 +277,7 @@ export default function HistoryClient() {
     }
 
     load();
+    // Refresh history every 30 seconds to keep trend context up to date.
     const timer = window.setInterval(load, 30000);
     return () => {
       cancelled = true;
@@ -293,23 +309,27 @@ export default function HistoryClient() {
   }, [selectedKey, series]);
 
   return (
-    <main className="history-page">
-      <nav className="topbar">
-        <a className="brand" href="/">Archipelago</a>
-        <div className="admin-top-actions">
-          <a className="toplink" href="/">Dashboard</a>
-          <a className="toplink" href="/admin">Admin</a>
-          <span className={`status-pill ${status}`}>
+    <main className="history-lab-page station-dashboard">
+      {/* Header: same language as dashboard, with history-specific title. */}
+      <nav className="station-header history-lab-header">
+        <div className="station-brand-stack">
+          <a className="brand station-brand-word" href="/">Archipelago</a>
+          <h1>
+            <em>History Lab</em>
+          </h1>
+        </div>
+        <div className="station-header-actions">
+          <a className="station-nav-link" href="/">Dashboard</a>
+          <a className="station-nav-link" href="/admin">Admin</a>
+          <span className={`station-status ${status}`}>
             {statusText}
           </span>
         </div>
       </nav>
 
-      <div className="history-title-row">
-        <div className="page-title">
-          <h1>History <em>Lab</em></h1>
-        </div>
-        <div className="range-control" aria-label="History range">
+      {/* Toolbar: time window selector. */}
+      <div className="history-lab-toolbar">
+        <div className="history-range-selector" aria-label="History range">
           {ranges.map(item => (
             <button
               className={item.key === range ? "active" : ""}
@@ -323,26 +343,28 @@ export default function HistoryClient() {
         </div>
       </div>
 
-      <div className="meta-row">
+      {/* Meta strip: context for selected time window and payload size. */}
+      <div className="station-meta-strip history-meta-strip">
         <span>Last <strong>{age(latest?.receivedAt)}</strong></span>
         <span>Window <strong>{spanLabel(points)}</strong></span>
         <span>Samples <strong>{windowHistory.length}</strong></span>
         <span>Series <strong>{series.length || "--"}</strong></span>
       </div>
 
-      <section className="history-board">
-        <div className="history-panel chart-panel">
-          <div className="history-panel-head">
+      {/* Main board: chart panel + station insight panel. */}
+      <section className="history-lab-board">
+        <div className="history-lab-panel history-chart-panel">
+          <div className="history-panel-header">
             <div>
               <h2>{selected?.label ?? "No numeric series"}</h2>
               <p>{selected ? `${points.length} plotted samples` : "Waiting for display telemetry"}</p>
             </div>
-            <span className={`series-status ${selected?.online ? "online" : ""}`}>
+            <span className={`history-series-status ${selected?.online ? "online" : ""}`}>
               {selected?.online ? "Online" : "Idle"}
             </span>
           </div>
 
-          <div className="series-tabs" aria-label="Sensor series">
+          <div className="history-series-tabs" aria-label="Sensor series">
             {series.map(item => (
               <button
                 className={item.key === selected?.key ? "active" : ""}
@@ -358,14 +380,14 @@ export default function HistoryClient() {
           <HistoryChart points={points} unit={selected?.unit ?? ""} />
         </div>
 
-        <aside className="history-panel insight-panel">
-          <div className="history-panel-head">
+        <aside className="history-lab-panel history-insight-panel">
+          <div className="history-panel-header">
             <div>
               <h2>Station</h2>
               <p>{latest?.board ?? "Weather Station"}</p>
             </div>
           </div>
-          <div className="insight-list">
+          <div className="history-station-list">
             <div>
               <span>Mode</span>
               <strong>{solarLabel(latest?.solarMode)}</strong>
@@ -383,7 +405,7 @@ export default function HistoryClient() {
               <strong>{latest?.wifi?.sta ? "Station" : latest?.wifi?.ap ? "Access Point" : "Offline"}</strong>
             </div>
           </div>
-          <div className="derived-list">
+          <div className="history-derived-grid">
             {insights.values.slice(0, 4).map(item => (
               <div className={item.tone ?? ""} key={item.label}>
                 <span>{item.label}</span>
@@ -391,45 +413,47 @@ export default function HistoryClient() {
               </div>
             ))}
           </div>
-          <p className="history-report">{insights.summary} {buildReport(selected, points, windowHistory.length)}</p>
+          <p className="history-lab-report">{insights.summary} {buildReport(selected, points, windowHistory.length)}</p>
         </aside>
       </section>
 
-      <section className="history-stat-grid" aria-label="Selected series statistics">
-        <article className="history-stat">
+      {/* Focus stats: selected series key numbers. */}
+      <section className="history-selected-stat-grid" aria-label="Selected series statistics">
+        <article className="history-selected-stat">
           <span>Latest</span>
           <strong>{fmt(selectedStats.latest, selected?.unit)}</strong>
         </article>
-        <article className="history-stat">
+        <article className="history-selected-stat">
           <span>Minimum</span>
           <strong>{fmt(selectedStats.min, selected?.unit)}</strong>
         </article>
-        <article className="history-stat">
+        <article className="history-selected-stat">
           <span>Average</span>
           <strong>{fmt(selectedStats.avg, selected?.unit)}</strong>
         </article>
-        <article className="history-stat">
+        <article className="history-selected-stat">
           <span>Maximum</span>
           <strong>{fmt(selectedStats.max, selected?.unit)}</strong>
         </article>
-        <article className={`history-stat ${selectedStats.delta && selectedStats.delta < 0 ? "down" : selectedStats.delta && selectedStats.delta > 0 ? "up" : ""}`}>
+        <article className={`history-selected-stat ${selectedStats.delta && selectedStats.delta < 0 ? "down" : selectedStats.delta && selectedStats.delta > 0 ? "up" : ""}`}>
           <span>Delta</span>
           <strong>{fmtDelta(selectedStats.delta, selected?.unit)}</strong>
         </article>
       </section>
 
-      <section className="series-summary-grid" aria-label="All series summary">
+      {/* All-series matrix: quick compare cards for each channel. */}
+      <section className="history-series-summary-grid" aria-label="All series summary">
         {series.map(item => {
           const itemPoints = filterPoints(item.points, range);
           const itemStats = stats(itemPoints);
           return (
-            <article className="series-summary" key={item.key}>
-              <div className="tile-top">
-                <span className={`tile-dot ${item.online ? "live" : ""}`} />
-                <span className="tile-label">{item.label}</span>
+            <article className="history-series-card" key={item.key}>
+              <div className="oled-panel-head">
+                <span className={`oled-status-pixel ${item.online ? "live" : ""}`} />
+                <span className="oled-panel-label">{item.label}</span>
               </div>
-              <div className="series-summary-value">{fmt(itemStats.latest, item.unit)}</div>
-              <div className="series-summary-meta">
+              <div className="history-series-card-value">{fmt(itemStats.latest, item.unit)}</div>
+              <div className="history-series-card-meta">
                 <span>{fmt(itemStats.min, item.unit)}</span>
                 <span>{fmtDelta(itemStats.delta, item.unit)}</span>
                 <span>{fmt(itemStats.max, item.unit)}</span>
