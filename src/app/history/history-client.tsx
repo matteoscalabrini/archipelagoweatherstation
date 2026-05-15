@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { deriveWeatherInsights } from "@/lib/insights";
 import type { DisplayReading, WeatherStationTelemetry } from "@/lib/telemetry";
 
@@ -191,11 +191,13 @@ function buildReport(series: Series | undefined, points: Point[], sampleCount: n
   return `${series.label} ${direction} ${fmt(Math.abs(s.delta ?? 0), series.unit)} across ${sampleCount} samples. Range ${fmt(s.min, series.unit)} to ${fmt(s.max, series.unit)}.`;
 }
 
-/* 4) History chart renderer (display-inspired chart panel). */
+/* 4) History chart renderer (display-inspired chart panel) with cursor tracking. */
 function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
   const width = 760;
   const height = 300;
   const pad = { top: 18, right: 18, bottom: 34, left: 52 };
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [cursor, setCursor] = useState<{ svgX: number; svgY: number; point: Point; nearestIndex: number } | null>(null);
 
   if (points.length < 2) {
     return (
@@ -229,25 +231,123 @@ function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
   const xTicks = [0, 0.5, 1].map(ratio => xMin + (xMax - xMin) * ratio);
   const last = points[points.length - 1];
 
+  function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const svgX = (e.clientX - rect.left) * scaleX;
+    // Clamp to chart area
+    const clampedX = Math.max(pad.left, Math.min(width - pad.right, svgX));
+    // Convert SVG X back to data time
+    const dataTime = xMin + ((clampedX - pad.left) / innerWidth) * xRange;
+    // Find nearest point
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const dist = Math.abs(points[i].t - dataTime);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = i;
+      }
+    }
+    const nearest = points[nearestIdx];
+    setCursor({
+      svgX: x(nearest.t),
+      svgY: y(nearest.v),
+      point: nearest,
+      nearestIndex: nearestIdx
+    });
+  }
+
+  function handlePointerLeave() {
+    setCursor(null);
+  }
+
   return (
-    <svg className="history-series-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Selected sensor history chart">
-      {yTicks.map(value => (
-        <g key={value}>
-          <line className="history-series-grid-line" x1={pad.left} y1={y(value)} x2={width - pad.right} y2={y(value)} />
-          <text className="history-series-axis-label" x={pad.left - 10} y={y(value) + 4} textAnchor="end">
-            {fmt(value, unit)}
+    <div className="history-chart-container">
+      <svg
+        ref={svgRef}
+        className="history-series-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Selected sensor history chart"
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        style={{ touchAction: "none" }}
+      >
+        {yTicks.map(value => (
+          <g key={value}>
+            <line className="history-series-grid-line" x1={pad.left} y1={y(value)} x2={width - pad.right} y2={y(value)} />
+            <text className="history-series-axis-label" x={pad.left - 10} y={y(value) + 4} textAnchor="end">
+              {fmt(value, unit)}
+            </text>
+          </g>
+        ))}
+        {xTicks.map(value => (
+          <text className="history-series-axis-label" key={value} x={x(value)} y={height - 10} textAnchor="middle">
+            {timeLabel(value)}
           </text>
-        </g>
-      ))}
-      {xTicks.map(value => (
-        <text className="history-series-axis-label" key={value} x={x(value)} y={height - 10} textAnchor="middle">
-          {timeLabel(value)}
-        </text>
-      ))}
-      <path className="history-series-area" d={area} />
-      <path className="history-series-line" d={path} />
-      <rect className="history-series-last-dot" x={x(last.t) - 2.5} y={y(last.v) - 2.5} width="5" height="5" />
-    </svg>
+        ))}
+        <path className="history-series-area" d={area} />
+        <path className="history-series-line" d={path} />
+        <rect className="history-series-last-dot" x={x(last.t) - 2.5} y={y(last.v) - 2.5} width="5" height="5" />
+
+        {/* Cursor crosshair + tooltip */}
+        {cursor && (
+          <>
+            {/* Vertical crosshair line */}
+            <line
+              className="history-chart-crosshair"
+              x1={cursor.svgX}
+              y1={pad.top}
+              x2={cursor.svgX}
+              y2={height - pad.bottom}
+            />
+            {/* Horizontal crosshair line */}
+            <line
+              className="history-chart-crosshair"
+              x1={pad.left}
+              y1={cursor.svgY}
+              x2={width - pad.right}
+              y2={cursor.svgY}
+            />
+            {/* Dot on the data point */}
+            <circle
+              className="history-chart-cursor-dot"
+              cx={cursor.svgX}
+              cy={cursor.svgY}
+              r={4}
+            />
+            {/* Tooltip background */}
+            <rect
+              className="history-chart-tooltip-bg"
+              x={cursor.svgX + 8 > width - pad.right - 120 ? cursor.svgX - 128 : cursor.svgX + 8}
+              y={Math.max(pad.top, cursor.svgY - 32)}
+              width={120}
+              height={28}
+              rx={3}
+            />
+            {/* Tooltip text: value */}
+            <text
+              className="history-chart-tooltip-text"
+              x={cursor.svgX + 8 > width - pad.right - 120 ? cursor.svgX - 120 : cursor.svgX + 16}
+              y={Math.max(pad.top + 12, cursor.svgY - 14)}
+            >
+              {fmt(cursor.point.v, unit)}
+            </text>
+            {/* Tooltip text: time */}
+            <text
+              className="history-chart-tooltip-time"
+              x={cursor.svgX + 8 > width - pad.right - 120 ? cursor.svgX - 120 : cursor.svgX + 16}
+              y={Math.max(pad.top + 24, cursor.svgY - 2)}
+            >
+              {dateTimeLabel(cursor.point.t)}
+            </text>
+          </>
+        )}
+      </svg>
+    </div>
   );
 }
 
