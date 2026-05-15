@@ -1595,13 +1595,42 @@ main {
 @media (max-width: 760px) {
   .station-header,
   .topbar {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .station-brand-stack,
+  .brand-stack {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .station-brand-stack .brand,
+  .brand-stack .brand {
+    font-size: 1.4rem;
+  }
+  .station-dashboard h1,
+  .dashboard-shell h1 {
+    font-size: 1.2rem;
   }
   .station-header-actions,
   .admin-top-actions {
-    width: 100%;
-    flex-wrap: wrap;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+  .station-nav-link,
+  .toplink {
+    font-size: 0.85rem;
+  }
+  .station-status,
+  .status-pill {
+    font-size: 0.75rem;
+  }
+  .oled-grid-3x3,
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
   }
   .system-diagnostics-grid,
   .health-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1619,22 +1648,27 @@ main {
 
 @media (max-width: 640px) {
   main { padding: 0 0.5rem 2rem; }
+  .oled-grid-3x3,
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
   .oled-panel,
-  .tile { border-radius: 6px; padding: 0.44rem 0.5rem 0.54rem; min-height: 186px; }
+  .tile { border-radius: 6px; padding: 0.55rem 0.6rem 0.6rem; min-height: 160px; }
   .oled-main-value,
-  .tile-value { font-size: 1.78rem; }
+  .tile-value { font-size: 1.65rem; }
   .oled-panel-label,
-  .tile-label { font-size: 0.74rem; }
+  .tile-label { font-size: 0.78rem; }
   .trend-readout,
-  .delta { font-size: 0.72rem; }
+  .delta { font-size: 0.74rem; }
   .forecast-driver-list .trend-readout,
-  .forecast-drivers .delta { font-size: 0.72rem; }
+  .forecast-drivers .delta { font-size: 0.74rem; }
   .oled-secondary-line,
-  .tile-secondary { font-size: 0.64rem; }
+  .tile-secondary { font-size: 0.66rem; }
   .trend-graph-wrap,
-  .tile-spark-wrap { min-height: 2.1rem; }
+  .tile-spark-wrap { min-height: 2.2rem; }
   .station-meta-strip,
-  .meta-row { gap: 0.45rem; }
+  .meta-row { gap: 0.45rem; font-size: 0.85rem; }
   .forecast-banner-display,
   .weather-forecast-box { gap: 0.5rem; }
   .forecast-banner-text,

@@ -549,10 +549,15 @@ export default function AdminClient() {
 
   if (!configured) {
     return (
-      <main className="admin-page">
-        <nav className="topbar">
-          <a className="brand" href="/">Archipelago</a>
-          <span className="status-pill error">Locked</span>
+      <main className="admin-page station-dashboard">
+        <nav className="station-header">
+          <div className="station-brand-stack">
+            <a className="brand station-brand-word" href="/">Archipelago</a>
+            <h1><em>Admin</em></h1>
+          </div>
+          <div className="station-header-actions">
+            <span className="station-status error">Locked</span>
+          </div>
         </nav>
         <section className="admin-panel compact">
           <h1>Admin</h1>
@@ -564,10 +569,15 @@ export default function AdminClient() {
 
   if (!authenticated) {
     return (
-      <main className="admin-page">
-        <nav className="topbar">
-          <a className="brand" href="/">Archipelago</a>
-          <span className="status-pill waiting">Admin</span>
+      <main className="admin-page station-dashboard">
+        <nav className="station-header">
+          <div className="station-brand-stack">
+            <a className="brand station-brand-word" href="/">Archipelago</a>
+            <h1><em>Admin</em></h1>
+          </div>
+          <div className="station-header-actions">
+            <span className="station-status waiting">Admin</span>
+          </div>
         </nav>
         <form className="admin-panel compact" onSubmit={login}>
           <h1>Admin</h1>
@@ -592,12 +602,15 @@ export default function AdminClient() {
   const stationConfig = latest?.config;
 
   return (
-    <main className="admin-page">
-      <nav className="topbar">
-        <a className="brand" href="/">Archipelago</a>
-        <div className="admin-top-actions">
-          <a className="toplink" href="/history">History</a>
-          <span className={`status-pill ${connected ? "online" : "waiting"}`}>
+    <main className="admin-page station-dashboard">
+      <nav className="station-header">
+        <div className="station-brand-stack">
+          <a className="brand station-brand-word" href="/">Archipelago</a>
+          <h1><em>Admin</em></h1>
+        </div>
+        <div className="station-header-actions">
+          <a className="station-nav-link" href="/history">History</a>
+          <span className={`station-status ${connected ? "online" : "waiting"}`}>
             {connected ? "Station" : "Waiting"}
           </span>
           <button className="admin-button ghost" type="button" onClick={logout}>Sign Out</button>
@@ -605,7 +618,6 @@ export default function AdminClient() {
       </nav>
 
       <div className="admin-title-row">
-        <h1>Admin</h1>
         <div className="admin-top-actions">
           {message && <div className="admin-message">{message}</div>}
           <button className="admin-button ghost" type="button" onClick={loadManagementData} disabled={busy}>
