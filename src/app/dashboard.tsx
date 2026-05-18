@@ -191,10 +191,16 @@ function signalPercent(
 }
 
 /* 5) Series extraction + trend deltas used by panel sparkline + forecast logic. */
-function extractSeries(history: WeatherStationTelemetry[], label: string): Point[] {
+function extractDisplaySeries(
+  history: WeatherStationTelemetry[],
+  index: number,
+  label?: string
+): Point[] {
   const points: Point[] = [];
+  const normalizedLabel = label?.trim().toUpperCase();
   for (const snap of history) {
-    const display = snap.displays?.find((d) => d?.label === label);
+    const display = snap.displays?.[index] ??
+      (normalizedLabel ? snap.displays?.find((d) => d?.label?.trim().toUpperCase() === normalizedLabel) : undefined);
     const v = toNumber(display?.primary);
     if (v !== null && snap.receivedAt) {
       points.push({ t: new Date(snap.receivedAt).getTime(), v });
@@ -257,9 +263,9 @@ function buildForecastDrivers(
   forecastState: string,
   history: WeatherStationTelemetry[]
 ): ForecastDrivers {
-  const pressureSeries = extractSeries(history, "ENV PRES");
-  const humiditySeries = extractSeries(history, "ENV HUM");
-  const windSeries = extractSeries(history, "WIND SPD");
+  const pressureSeries = extractDisplaySeries(history, 2, "ENV PRES");
+  const humiditySeries = extractDisplaySeries(history, 1, "ENV HUM");
+  const windSeries = extractDisplaySeries(history, 4, "WIND SPD");
 
   const pressureDelta = trendDelta(pressureSeries, 3 * 60 * 60 * 1000);
   const humidityDelta = trendDelta(humiditySeries, 60 * 60 * 1000);
@@ -334,7 +340,9 @@ function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
       lit.add(`${col}:${row}`);
     };
 
-    if (points.length >= 2) {
+    if (points.length === 1) {
+      addCell(Math.floor(columns / 2), Math.floor(rows / 2));
+    } else if (points.length >= 2) {
       const xs = points.map((p) => p.t);
       const ys = points.map((p) => p.v);
       const xMin = xs[0];
@@ -521,7 +529,7 @@ export default function Dashboard() {
         <div className="oled-grid-3x3" aria-label="Sensor readings">
           {Array.from({ length: 9 }).map((_, i) => {
             const d = displays[i];
-            const series = d?.label ? extractSeries(orderedHistory, d.label) : [];
+            const series = d ? extractDisplaySeries(orderedHistory, i, d.label) : [];
             const isForecastTile = (d?.label ?? "").toUpperCase().includes("FORECAST");
             const delta = trendDelta(series);
             const secondary = d?.secondaryLabel

@@ -53,7 +53,7 @@ function toNumber(value: unknown): number | null {
 }
 
 function displayKey(display: DisplayReading, index: number) {
-  return `${display.label || `Channel ${index + 1}`}::${display.primaryUnit ?? ""}`;
+  return `display-${index}::${display.primaryUnit ?? ""}`;
 }
 
 function displayLabel(display: DisplayReading, index: number) {
@@ -136,6 +136,7 @@ function buildSeries(history: WeatherStationTelemetry[]): Series[] {
         online: Boolean(display.online),
         points: []
       };
+      current.label = displayLabel(display, index);
       current.online = Boolean(display.online);
       current.points.push({ t, v: value });
       map.set(key, current);
