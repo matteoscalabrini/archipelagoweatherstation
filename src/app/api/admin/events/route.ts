@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/auth";
-import { clearTelemetryHistory } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -10,6 +9,12 @@ function unauthorized() {
 
 export async function DELETE(request: NextRequest) {
   if (!isAdminRequest(request)) return unauthorized();
-  await clearTelemetryHistory();
-  return NextResponse.json({ success: true });
+  return NextResponse.json(
+    {
+      success: false,
+      error: "telemetry_history_delete_disabled",
+      message: "Events are derived from telemetry history; deleting them would erase trend data."
+    },
+    { status: 405 }
+  );
 }
