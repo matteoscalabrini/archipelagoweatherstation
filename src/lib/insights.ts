@@ -280,23 +280,67 @@ function batteryTone(percent: number | null): InsightValue["tone"] {
   return "ok";
 }
 
+function tempDescription(tempC: number | null): string {
+  if (tempC === null) return "";
+  if (tempC < 5) return "It's quite cold outside";
+  if (tempC < 12) return "It's a bit chilly";
+  if (tempC < 18) return "It's cool out";
+  if (tempC < 24) return "It's pleasant outside";
+  if (tempC < 30) return "It's warm out";
+  if (tempC < 35) return "It's getting hot";
+  return "It's very hot outside";
+}
+
+function humidityDescription(humidity: number | null): string {
+  if (humidity === null) return "";
+  if (humidity < 30) return "the air is dry";
+  if (humidity < 50) return "humidity is comfortable";
+  if (humidity < 70) return "it's a bit humid";
+  if (humidity < 85) return "the air feels muggy";
+  return "it's very humid";
+}
+
+function pressureNarrative(delta: number | null): string {
+  if (delta === null) return "";
+  if (delta > 2) return "The pressure is rising steadily, suggesting clearing skies and calmer weather ahead.";
+  if (delta > 1.5) return "The pressure is rising, which often means improving conditions.";
+  if (delta < -2) return "The pressure is dropping, which could bring unsettled weather.";
+  if (delta < -1.5) return "The pressure is falling, suggesting the weather may turn.";
+  return "The pressure has been steady, indicating stable conditions.";
+}
+
+function batteryNarrative(percent: number | null): string {
+  if (percent === null) return "";
+  if (percent < 15) return "The station battery is critically low and needs attention.";
+  if (percent < 30) return "The station battery is getting low.";
+  if (percent < 50) return "The station battery is at a moderate level.";
+  return "The station battery is healthy.";
+}
+
 function buildSummary(insights: Omit<WeatherInsights, "summary" | "values">) {
-  const parts: string[] = [];
-  if (insights.dewPointC !== null && insights.temperatureC !== null) {
-    const spread = insights.temperatureC - insights.dewPointC;
-    parts.push(spread < 3 ? "Air is close to saturation" : spread < 8 ? "Humidity is noticeable" : "Air has comfortable drying room");
+  const sentences: string[] = [];
+
+  // Sentence 1: Temperature and comfort
+  if (insights.temperatureC !== null) {
+    const temp = tempDescription(insights.temperatureC);
+    const humidity = humidityDescription(insights.humidityPct);
+    if (temp && humidity) {
+      sentences.push(`${temp}, and ${humidity}.`);
+    } else if (temp) {
+      sentences.push(`${temp}.`);
+    }
   }
+
+  // Sentence 2: Pressure trend
   if (insights.pressureDeltaHpa !== null) {
-    parts.push(
-      insights.pressureDeltaHpa > 1.5 ? "pressure is rising" :
-      insights.pressureDeltaHpa < -1.5 ? "pressure is falling" :
-      "pressure is steady"
-    );
+    sentences.push(pressureNarrative(insights.pressureDeltaHpa));
   }
-  if (insights.batteryPercent !== null) {
-    parts.push(insights.batteryPercent < 25 ? "battery needs attention" : "battery looks healthy");
+
+  if (sentences.length === 0) {
+    return "Waiting for more data to build a weather report.";
   }
-  return parts.length > 0 ? `${parts.join(", ")}.` : "Waiting for temperature, humidity, pressure, or battery signals to build a richer report.";
+
+  return sentences.join(" ");
 }
 
 export function deriveWeatherInsights(latest: WeatherStationTelemetry | null | undefined, history: WeatherStationTelemetry[] = []): WeatherInsights {
@@ -328,11 +372,11 @@ export function deriveWeatherInsights(latest: WeatherStationTelemetry | null | u
     summary: buildSummary(base),
     values: [
       { label: "Dew Point", value: formatC(dewPoint) },
-      { label: "Heat Index", value: heatIndex === null ? "Inactive" : formatC(heatIndex), tone: heatIndex !== null && heatIndex > 32 ? "warn" : undefined },
-      { label: "Pressure 3H", value: formatPressureDelta(pressureDelta), tone: pressureTone(pressureDelta) },
+      { label: "Feels Like", value: heatIndex === null ? "N/A" : formatC(heatIndex), tone: heatIndex !== null && heatIndex > 32 ? "warn" : undefined },
+      { label: "Pressure Trend", value: formatPressureDelta(pressureDelta), tone: pressureTone(pressureDelta) },
       { label: "Battery", value: battery !== null ? formatPct(battery) : voltage !== null ? `${voltage.toFixed(2)} V` : "--", tone: batteryTone(battery) },
-      { label: "Cadence", value: formatCadence(cadence) },
-      { label: "Sun Share", value: formatPct(sunShare) }
+      { label: "Update Rate", value: formatCadence(cadence) },
+      { label: "Sun Exposure", value: formatPct(sunShare) }
     ]
   };
 }
