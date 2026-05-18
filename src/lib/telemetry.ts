@@ -1,11 +1,33 @@
 export type DisplayReading = {
+  id?: number;
   label: string;
   primary: number | string | null;
   primaryUnit?: string;
   secondary?: number | string | null;
   secondaryUnit?: string;
   secondaryLabel?: string;
+  displayOnline?: boolean;
+  sourceOnline?: boolean;
+  bus?: number;
+  i2cAddress?: number;
+  i2cAddressHex?: string;
   online: boolean;
+};
+
+export type DisplayStatus = {
+  count?: number;
+  onlineCount?: number;
+  offlineCount?: number;
+  allOnline?: boolean;
+  forcedOff?: boolean;
+  onlineMask?: number;
+  offlineMask?: number;
+  offline?: Array<{
+    id?: number;
+    bus?: number;
+    i2cAddress?: number;
+    i2cAddressHex?: string;
+  }>;
 };
 
 export type WeatherStationTelemetry = {
@@ -35,6 +57,7 @@ export type WeatherStationTelemetry = {
   };
   sensors?: Record<string, boolean>;
   config?: StationRemoteConfig;
+  displayStatus?: DisplayStatus;
   displays?: DisplayReading[];
   receivedAt?: string;
 };

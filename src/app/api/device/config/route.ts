@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isDeviceAuthorized } from "@/lib/auth";
-import { getRemoteConfig } from "@/lib/store";
+import { consumeDeviceCommand, getRemoteConfig } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -9,9 +9,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "unauthorized" }, { status: 401 });
   }
 
-  const record = await getRemoteConfig();
+  const [record, commandRecord] = await Promise.all([
+    getRemoteConfig(),
+    consumeDeviceCommand()
+  ]);
+  const command = commandRecord.command;
   return NextResponse.json(
-    { success: true, ...record },
+    {
+      success: true,
+      ...record,
+      deviceCommand: command,
+      deviceCommandType: command?.type ?? "",
+      deviceCommandId: command?.id ?? "",
+      deviceCommandRequestedAt: command?.requestedAt ?? ""
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

@@ -1,11 +1,13 @@
 import { Redis } from "@upstash/redis";
 import type {
+  DeviceCommand,
+  DeviceCommandRecord,
   FirmwareManifestRecord,
   RemoteConfigRecord,
   StationRemoteConfig,
   FirmwareManifest
 } from "./management";
-import { emptyFirmwareManifest, sanitizeFirmwareManifest, sanitizeRemoteConfig } from "./management";
+import { emptyFirmwareManifest, sanitizeDeviceCommand, sanitizeFirmwareManifest, sanitizeRemoteConfig } from "./management";
 import { defaultAlertRules, sanitizeAlertRules, type AlertRules, type AlertRulesRecord } from "./events";
 import {
   defaultNotificationSettings,
@@ -19,6 +21,7 @@ import type { WeatherStationTelemetry } from "./telemetry";
 const latestKey = "weatherstation:latest";
 const historyKey = "weatherstation:history";
 const remoteConfigKey = "weatherstation:remote-config";
+const deviceCommandKey = "weatherstation:device-command";
 const firmwareManifestKey = "weatherstation:firmware-manifest";
 const alertRulesKey = "weatherstation:alert-rules";
 const notificationSettingsKey = "weatherstation:notification-settings";
@@ -29,6 +32,7 @@ type MemoryGlobal = typeof globalThis & {
   __weatherstationLatest?: WeatherStationTelemetry;
   __weatherstationHistory?: WeatherStationTelemetry[];
   __weatherstationRemoteConfig?: RemoteConfigRecord;
+  __weatherstationDeviceCommand?: DeviceCommandRecord;
   __weatherstationFirmwareManifest?: FirmwareManifestRecord;
   __weatherstationAlertRules?: AlertRulesRecord;
   __weatherstationNotificationSettings?: NotificationSettingsRecord;
@@ -111,6 +115,47 @@ export async function saveRemoteConfig(config: StationRemoteConfig): Promise<Rem
     return record;
   }
   (globalThis as MemoryGlobal).__weatherstationRemoteConfig = record;
+  return record;
+}
+
+function normalizeDeviceCommandRecord(record: DeviceCommandRecord | null | undefined): DeviceCommandRecord {
+  const command = sanitizeDeviceCommand(record?.command);
+  return {
+    command,
+    updatedAt: record?.updatedAt ?? null
+  };
+}
+
+export async function getDeviceCommand(): Promise<DeviceCommandRecord> {
+  if (kvConfigured()) {
+    const record = await redisClient().get<DeviceCommandRecord>(deviceCommandKey);
+    return normalizeDeviceCommandRecord(record);
+  }
+  return normalizeDeviceCommandRecord((globalThis as MemoryGlobal).__weatherstationDeviceCommand);
+}
+
+export async function queueDeviceCommand(command: DeviceCommand): Promise<DeviceCommandRecord> {
+  const record = { command, updatedAt: new Date().toISOString() };
+  if (kvConfigured()) {
+    await redisClient().set(deviceCommandKey, record);
+    return record;
+  }
+  (globalThis as MemoryGlobal).__weatherstationDeviceCommand = record;
+  return record;
+}
+
+export async function clearDeviceCommand(): Promise<DeviceCommandRecord> {
+  if (kvConfigured()) {
+    await redisClient().del(deviceCommandKey);
+  } else {
+    (globalThis as MemoryGlobal).__weatherstationDeviceCommand = undefined;
+  }
+  return { command: null, updatedAt: new Date().toISOString() };
+}
+
+export async function consumeDeviceCommand(): Promise<DeviceCommandRecord> {
+  const record = await getDeviceCommand();
+  if (record.command) await clearDeviceCommand();
   return record;
 }
 

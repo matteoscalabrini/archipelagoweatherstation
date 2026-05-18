@@ -262,6 +262,8 @@ h1 em {
 }
 
 .ok-text  { color: var(--green); }
+.bad-text { color: var(--red); }
+.warn-text { color: var(--warn); }
 .dim-text { color: var(--muted); }
 
 .sensor-row {
@@ -718,6 +720,107 @@ h1 em {
   color: var(--red);
 }
 
+.reachability-panel {
+  border: 1px solid var(--border);
+  background: var(--raised);
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.reachability-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.reachability-summary article {
+  background: var(--surface);
+  min-width: 0;
+  padding: 0.85rem;
+}
+
+.reachability-summary span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.reachability-summary strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0.35rem 0;
+}
+
+.reachability-summary p {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.reachability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.reachability-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  min-width: 0;
+  padding: 0.65rem;
+}
+
+.reachability-chip b,
+.reachability-chip em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reachability-chip b {
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.reachability-chip em {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-style: normal;
+  margin-top: 0.25rem;
+}
+
+.reachability-chip.ok {
+  border-color: rgba(76, 175, 80, 0.25);
+}
+
+.reachability-chip.bad {
+  border-color: rgba(239, 83, 80, 0.3);
+}
+
+.reachability-chip.bad em {
+  color: var(--red);
+}
+
+.reachability-empty {
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+  grid-column: 1 / -1;
+  padding: 0.8rem;
+}
+
 .event-timeline {
   border: 1px solid var(--border);
   margin-top: 1rem;
@@ -1092,6 +1195,8 @@ h1 em {
   .history-stat-grid { grid-template-columns: repeat(2, 1fr); }
   .series-summary-grid { grid-template-columns: repeat(2, 1fr); }
   .alert-grid { grid-template-columns: repeat(2, 1fr); }
+  .reachability-summary { grid-template-columns: repeat(2, 1fr); }
+  .reachability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-grid { grid-template-columns: repeat(2, 1fr); }
   .artifact-grid { grid-template-columns: 1fr; }
 }
@@ -1113,6 +1218,8 @@ h1 em {
   .history-stat-grid,
   .series-summary-grid { grid-template-columns: 1fr; }
   .alert-grid { grid-template-columns: 1fr; }
+  .reachability-summary,
+  .reachability-grid { grid-template-columns: 1fr; }
   .event-head {
     align-items: flex-start;
     flex-direction: column;

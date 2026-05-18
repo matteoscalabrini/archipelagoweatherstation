@@ -28,6 +28,14 @@ GET /api/device/artifact?type=spiffs
 Authorization: Bearer <WEATHER_STATION_API_KEY>
 ```
 
+Admin-triggered device actions are queued by:
+
+```text
+POST /api/admin/device-command
+```
+
+The queued command is delivered once in the next `GET /api/device/config` response.
+
 The protected admin UI is available at:
 
 ```text
@@ -99,6 +107,7 @@ That file is ignored by git because it contains the shared secret.
 `/admin` stores remote config and update manifests in Redis/Upstash, with in-memory fallback for local development. Uploaded binaries are stored as private Vercel Blob objects and streamed to stations through `/api/device/artifact`; artifact downloads accept either the station bearer token or the short-lived signed URL returned by `/api/device/firmware`:
 
 - Remote config: desired station runtime values, including solar policy, posting intervals, battery percentage bounds, and battery lockout thresholds.
+- Device actions: queues one pending display restart or full device reboot for delivery on the next station remote-config pull.
 - Firmware upload: stores the newest `firmware.bin`, computes SHA-256/size, updates the manifest, and deletes the previous firmware blob after the new upload succeeds.
 - SPIFFS upload: stores the newest SPIFFS image, computes SHA-256/size, updates the manifest, and deletes the previous SPIFFS blob after the new upload succeeds.
 - Update status: compares the target versions with the latest `firmwareVersion` and `spiffsVersion` reported by the station.

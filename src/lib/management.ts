@@ -20,6 +20,19 @@ export type StationRemoteConfig = {
   wifiApAlways?: boolean;
 };
 
+export type DeviceCommandType = "deviceReboot" | "displayReboot";
+
+export type DeviceCommand = {
+  id: string;
+  type: DeviceCommandType;
+  requestedAt: string;
+};
+
+export type DeviceCommandRecord = {
+  command: DeviceCommand | null;
+  updatedAt: string | null;
+};
+
 export type FirmwareArtifact = {
   enabled: boolean;
   version: string;
@@ -114,6 +127,31 @@ function optionalBoolean(value: unknown) {
 function cleanString(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
+}
+
+export function isDeviceCommandType(value: unknown): value is DeviceCommandType {
+  return value === "deviceReboot" || value === "displayReboot";
+}
+
+export function createDeviceCommand(type: DeviceCommandType): DeviceCommand {
+  return {
+    id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+    type,
+    requestedAt: new Date().toISOString()
+  };
+}
+
+export function sanitizeDeviceCommand(value: unknown): DeviceCommand | null {
+  const source = sourceObject(value);
+  const type = source.type;
+  if (!isDeviceCommandType(type)) return null;
+  const id = cleanString(source.id, 80);
+  const requestedAt = cleanString(source.requestedAt, 40);
+  return {
+    id: id || `${Date.now().toString(36)}-legacy`,
+    type,
+    requestedAt: requestedAt || new Date().toISOString()
+  };
 }
 
 export function sanitizeRemoteConfig(value: unknown): StationRemoteConfig {

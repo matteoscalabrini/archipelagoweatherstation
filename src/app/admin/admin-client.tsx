@@ -9,6 +9,8 @@ import {
   type EventSeverity
 } from "@/lib/events";
 import {
+  type DeviceCommand,
+  type DeviceCommandType,
   emptyFirmwareManifest,
   type FirmwareArtifact,
   type FirmwareManifest,
@@ -65,6 +67,13 @@ type NotificationSettingsResponse = {
   success: boolean;
   settings: NotificationSettings;
   updatedAt: string | null;
+};
+
+type DeviceCommandResponse = {
+  success: boolean;
+  command: DeviceCommand | null;
+  updatedAt: string | null;
+  error?: string;
 };
 
 const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; suffix: string }> = [
@@ -221,6 +230,32 @@ function severityText(severity: EventSeverity) {
   }
 }
 
+function sensorLabel(name: string) {
+  const labels: Record<string, string> = {
+    bme280Online: "BME280",
+    solarOnline: "Solar INA219",
+    batteryOnline: "Battery INA219",
+    windSpeedOnline: "Wind Speed",
+    windDirOnline: "Wind Direction"
+  };
+  if (labels[name]) return labels[name];
+  return name
+    .replace(/Online$/, "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\bina\b/gi, "INA")
+    .toUpperCase();
+}
+
+function commandLabel(command: DeviceCommand | null | undefined) {
+  if (!command) return "None queued";
+  return command.type === "deviceReboot" ? "Device reboot queued" : "Display restart queued";
+}
+
+function commandHelp(command: DeviceCommand | null | undefined) {
+  if (!command) return "Remote actions run when the station next posts and pulls remote config.";
+  return `${commandLabel(command)} at ${updatedLabel(command.requestedAt)}.`;
+}
+
 export default function AdminClient() {
   const [configured, setConfigured] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
@@ -235,6 +270,8 @@ export default function AdminClient() {
   const [alertRulesUpdatedAt, setAlertRulesUpdatedAt] = useState<string | null>(null);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(defaultNotificationSettings);
   const [notificationSettingsUpdatedAt, setNotificationSettingsUpdatedAt] = useState<string | null>(null);
+  const [deviceCommand, setDeviceCommand] = useState<DeviceCommand | null>(null);
+  const [deviceCommandUpdatedAt, setDeviceCommandUpdatedAt] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState("");
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({});
@@ -244,19 +281,21 @@ export default function AdminClient() {
   const activeAlertCount = alerts.filter(alert => alert.severity !== "ok").length;
 
   async function loadManagementData() {
-    const [configRes, firmwareRes, alertRulesRes, notificationSettingsRes, latestRes, historyRes] = await Promise.all([
+    const [configRes, firmwareRes, alertRulesRes, notificationSettingsRes, commandRes, latestRes, historyRes] = await Promise.all([
       fetch("/api/admin/station-config", { cache: "no-store" }),
       fetch("/api/admin/firmware", { cache: "no-store" }),
       fetch("/api/admin/alert-rules", { cache: "no-store" }),
       fetch("/api/admin/notification-settings", { cache: "no-store" }),
+      fetch("/api/admin/device-command", { cache: "no-store" }),
       fetch("/api/latest", { cache: "no-store" }),
       fetch("/api/history?limit=10080", { cache: "no-store" })
     ]);
-    if (!configRes.ok || !firmwareRes.ok || !alertRulesRes.ok || !notificationSettingsRes.ok) throw new Error("unauthorized");
+    if (!configRes.ok || !firmwareRes.ok || !alertRulesRes.ok || !notificationSettingsRes.ok || !commandRes.ok) throw new Error("unauthorized");
     const configJson = await configRes.json() as ConfigResponse;
     const firmwareJson = await firmwareRes.json() as FirmwareResponse;
     const alertRulesJson = await alertRulesRes.json() as AlertRulesResponse;
     const notificationSettingsJson = await notificationSettingsRes.json() as NotificationSettingsResponse;
+    const commandJson = await commandRes.json() as DeviceCommandResponse;
     const latestJson = latestRes.ok ? await latestRes.json() as LatestResponse : null;
     const historyJson = historyRes.ok ? await historyRes.json() as HistoryResponse : null;
     setConfigDraft(asDraft(configJson.config ?? {}));
@@ -267,6 +306,8 @@ export default function AdminClient() {
     setAlertRulesUpdatedAt(alertRulesJson.updatedAt ?? null);
     setNotificationSettings(notificationSettingsJson.settings ?? defaultNotificationSettings);
     setNotificationSettingsUpdatedAt(notificationSettingsJson.updatedAt ?? null);
+    setDeviceCommand(commandJson.command ?? null);
+    setDeviceCommandUpdatedAt(commandJson.updatedAt ?? null);
     setLatest(latestJson?.telemetry ?? null);
     setHistory(historyJson?.history ?? []);
     setConnected(Boolean(latestJson?.connected));
@@ -399,6 +440,46 @@ export default function AdminClient() {
       setMessage("Timeline cleared");
     } catch {
       setMessage("Timeline clear failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function queueRemoteCommand(type: DeviceCommandType) {
+    const action = type === "deviceReboot" ? "reboot the device" : "restart the displays";
+    if (!window.confirm(`Queue a remote command to ${action} on the next station config pull?`)) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/device-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type })
+      });
+      const json = await res.json() as DeviceCommandResponse;
+      if (!res.ok) throw new Error(json.error || "command_failed");
+      setDeviceCommand(json.command ?? null);
+      setDeviceCommandUpdatedAt(json.updatedAt ?? null);
+      setMessage(type === "deviceReboot" ? "Device reboot queued" : "Display restart queued");
+    } catch {
+      setMessage("Remote command queue failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearRemoteCommand() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/device-command", { method: "DELETE" });
+      const json = await res.json() as DeviceCommandResponse;
+      if (!res.ok) throw new Error(json.error || "clear_failed");
+      setDeviceCommand(json.command ?? null);
+      setDeviceCommandUpdatedAt(json.updatedAt ?? null);
+      setMessage("Queued command cleared");
+    } catch {
+      setMessage("Command clear failed");
     } finally {
       setBusy(false);
     }
@@ -590,6 +671,27 @@ export default function AdminClient() {
   }
 
   const stationConfig = latest?.config;
+  const sensorEntries = Object.entries(latest?.sensors ?? {});
+  const failedSensors = sensorEntries.filter(([, online]) => !online);
+  const displayStatus = latest?.displayStatus;
+  const displayRows = latest?.displays ?? [];
+  const displayCount = displayStatus?.count ?? displayRows.length;
+  const displayOnlineCount = displayStatus?.onlineCount ??
+    displayRows.filter(display => display.displayOnline !== false).length;
+  const allDisplaysOnline = displayStatus?.allOnline ??
+    (displayCount > 0 && displayOnlineCount === displayCount);
+  const offlineDisplayRows = displayRows.filter(display => display.displayOnline === false);
+  const offlineDisplays = offlineDisplayRows.length > 0 ?
+    offlineDisplayRows :
+    (displayStatus?.offline ?? []).map(display => ({
+      id: display.id,
+      label: `Display ${display.id ?? "--"}`,
+      displayOnline: false,
+      online: false,
+      bus: display.bus,
+      i2cAddressHex: display.i2cAddressHex
+    }));
+  const allSensorsOnline = sensorEntries.length > 0 && failedSensors.length === 0;
 
   return (
     <main className="admin-page">
@@ -641,6 +743,77 @@ export default function AdminClient() {
               <p>{alert.detail}</p>
             </article>
           ))}
+        </div>
+
+        <div className="reachability-panel">
+          <div className="admin-section-head">
+            <div>
+              <h2>Station Reachability</h2>
+              <p className="admin-muted">
+                Telemetry {updatedLabel(latest?.receivedAt)} · Command {updatedLabel(deviceCommandUpdatedAt)}
+              </p>
+              <p className="admin-help">
+                Physical OLED presence is tracked separately from sensor source health, so an offline sensor no longer hides a reachable display.
+              </p>
+            </div>
+            <div className="admin-section-actions">
+              {deviceCommand && (
+                <button className="admin-button ghost" type="button" onClick={clearRemoteCommand} disabled={busy}>
+                  Clear Action
+                </button>
+              )}
+              <button className="admin-button ghost" type="button" onClick={() => queueRemoteCommand("displayReboot")} disabled={busy}>
+                Restart Displays
+              </button>
+              <button className="admin-button ghost" type="button" onClick={() => queueRemoteCommand("deviceReboot")} disabled={busy}>
+                Reboot Device
+              </button>
+            </div>
+          </div>
+
+          <div className="reachability-summary">
+            <article>
+              <span>Sensors</span>
+              <strong className={allSensorsOnline ? "ok-text" : failedSensors.length > 0 ? "bad-text" : "dim-text"}>
+                {sensorEntries.length === 0 ? "Waiting" : `${sensorEntries.length - failedSensors.length}/${sensorEntries.length}`}
+              </strong>
+              <p>{failedSensors.length > 0 ? `${failedSensors.map(([name]) => sensorLabel(name)).join(", ")} offline` : "All reported sensors reachable"}</p>
+            </article>
+            <article>
+              <span>Displays</span>
+              <strong className={allDisplaysOnline ? "ok-text" : "bad-text"}>
+                {displayCount ? `${displayOnlineCount}/${displayCount}` : "Waiting"}
+              </strong>
+              <p>{allDisplaysOnline ? "All OLEDs ACK on their display buses" : `${offlineDisplays.length} OLED${offlineDisplays.length === 1 ? "" : "s"} offline`}</p>
+            </article>
+            <article>
+              <span>Remote Action</span>
+              <strong className={deviceCommand ? "warn-text" : "dim-text"}>{commandLabel(deviceCommand)}</strong>
+              <p>{commandHelp(deviceCommand)}</p>
+            </article>
+          </div>
+
+          <div className="reachability-grid">
+            {sensorEntries.map(([name, online]) => (
+              <span key={name} className={`reachability-chip ${online ? "ok" : "bad"}`}>
+                <b>{sensorLabel(name)}</b>
+                <em>{online ? "ONLINE" : "OFFLINE"}</em>
+              </span>
+            ))}
+            {displayRows.map((display, index) => {
+              const physicalOnline = display.displayOnline !== false;
+              const sourceOnline = display.sourceOnline ?? display.online;
+              return (
+                <span key={`display-${display.id ?? index}`} className={`reachability-chip ${physicalOnline ? "ok" : "bad"}`}>
+                  <b>{display.label || `DISPLAY ${display.id ?? index}`}</b>
+                  <em>{physicalOnline ? `DISPLAY OK · ${sourceOnline ? "SOURCE OK" : "SOURCE OFF"}` : `OFFLINE · BUS ${display.bus ?? "--"} ${display.i2cAddressHex ?? ""}`}</em>
+                </span>
+              );
+            })}
+            {sensorEntries.length === 0 && displayRows.length === 0 && (
+              <div className="reachability-empty">Waiting for telemetry with sensor and display status.</div>
+            )}
+          </div>
         </div>
 
         <div className="event-timeline" aria-label="Station event timeline">

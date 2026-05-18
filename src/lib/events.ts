@@ -116,6 +116,14 @@ function sensorEntries(snapshot: WeatherStationTelemetry) {
   return snapshot.sensors ? Object.entries(snapshot.sensors) : [];
 }
 
+function offlineDisplayLabels(snapshot: WeatherStationTelemetry) {
+  const fromDisplays = snapshot.displays
+    ?.filter(display => display.displayOnline === false)
+    .map((display, index) => display.label || `display-${display.id ?? index}`);
+  if (fromDisplays && fromDisplays.length > 0) return fromDisplays;
+  return snapshot.displayStatus?.offline?.map(display => `display-${display.id ?? "--"}`) ?? [];
+}
+
 function pushEvent(events: StationEvent[], snapshot: WeatherStationTelemetry, severity: EventSeverity, category: string, title: string, detail: string) {
   if (!snapshot.receivedAt) return;
   events.push({
@@ -180,6 +188,16 @@ export function deriveActiveAlerts(
       severity: "bad",
       title: "Sensor failure",
       detail: failedSensors.join(", ")
+    });
+  }
+
+  const failedDisplays = offlineDisplayLabels(latest);
+  if (rules.sensorAlerts && failedDisplays.length > 0) {
+    alerts.push({
+      id: "display-failure",
+      severity: "bad",
+      title: "Display offline",
+      detail: failedDisplays.join(", ")
     });
   }
 
