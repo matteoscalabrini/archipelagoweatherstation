@@ -76,24 +76,24 @@ type DeviceCommandResponse = {
   error?: string;
 };
 
-const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; suffix: string }> = [
-  { key: "solarSunEnterVoltageV", label: "Sun enter voltage", step: "0.1", suffix: "V" },
-  { key: "solarSunExitVoltageV", label: "Sun exit voltage", step: "0.1", suffix: "V" },
-  { key: "solarSunMinPowerW", label: "Sun minimum power", step: "0.1", suffix: "W" },
-  { key: "solarDarkEnterVoltageV", label: "Dark enter voltage", step: "0.1", suffix: "V" },
-  { key: "solarDarkExitVoltageV", label: "Dark exit voltage", step: "0.1", suffix: "V" },
-  { key: "solarDarkDeepSleepDelayMs", label: "Dark sleep delay", step: "1000", suffix: "ms" },
-  { key: "solarDeepSleepWakeMs", label: "Dark wake period", step: "1000", suffix: "ms" },
-  { key: "serverPostSunMs", label: "Post interval in sun", step: "1000", suffix: "ms" },
-  { key: "serverPostShadowMs", label: "Post interval in shadow", step: "1000", suffix: "ms" },
-  { key: "serverPostDarkMs", label: "Post interval in dark", step: "1000", suffix: "ms" },
-  { key: "batteryPercentEmptyVoltageV", label: "Battery empty voltage", step: "0.1", suffix: "V" },
-  { key: "batteryPercentFullVoltageV", label: "Battery full voltage", step: "0.1", suffix: "V" },
-  { key: "batteryLockoutEnterVoltageV", label: "Battery lockout enter", step: "0.01", suffix: "V" },
-  { key: "batteryLockoutResumeVoltageV", label: "Battery lockout resume", step: "0.01", suffix: "V" },
-  { key: "batteryLockoutWakeMs", label: "Battery lockout wake", step: "1000", suffix: "ms" },
-  { key: "remoteConfigPullMs", label: "Remote config pull", step: "1000", suffix: "ms" },
-  { key: "remoteFirmwareCheckMs", label: "Firmware check", step: "1000", suffix: "ms" }
+const configFields: Array<{ key: ConfigNumberKey; label: string; step: string; suffix: string; help: string }> = [
+  { key: "solarSunEnterVoltageV", label: "Sun enter voltage", step: "0.1", suffix: "V", help: "Solar panel voltage that promotes the station into full sun mode." },
+  { key: "solarSunExitVoltageV", label: "Sun exit voltage", step: "0.1", suffix: "V", help: "Voltage below which sun mode is allowed to fall back to shadow." },
+  { key: "solarSunMinPowerW", label: "Sun minimum power", step: "0.1", suffix: "W", help: "Minimum solar wattage required before treating light as charging sun." },
+  { key: "solarDarkEnterVoltageV", label: "Dark enter voltage", step: "0.1", suffix: "V", help: "Solar voltage threshold for entering dark power policy." },
+  { key: "solarDarkExitVoltageV", label: "Dark exit voltage", step: "0.1", suffix: "V", help: "Solar voltage threshold for leaving dark mode after light returns." },
+  { key: "solarDarkDeepSleepDelayMs", label: "Dark sleep delay", step: "1000", suffix: "ms", help: "How long darkness must persist before the station enters deep sleep." },
+  { key: "solarDeepSleepWakeMs", label: "Dark wake period", step: "1000", suffix: "ms", help: "Timer interval used for brief dark-mode wakeups while sleeping." },
+  { key: "serverPostSunMs", label: "Post interval in sun", step: "1000", suffix: "ms", help: "Telemetry post cadence while solar mode is sun." },
+  { key: "serverPostShadowMs", label: "Post interval in shadow", step: "1000", suffix: "ms", help: "Telemetry post cadence while solar mode is shadow." },
+  { key: "serverPostDarkMs", label: "Post interval in dark", step: "1000", suffix: "ms", help: "Telemetry post cadence for dark timer wake sessions." },
+  { key: "batteryPercentEmptyVoltageV", label: "Battery empty voltage", step: "0.1", suffix: "V", help: "Pack voltage treated as 0 percent for battery display and alerts." },
+  { key: "batteryPercentFullVoltageV", label: "Battery full voltage", step: "0.1", suffix: "V", help: "Pack voltage treated as 100 percent for battery display and alerts." },
+  { key: "batteryLockoutEnterVoltageV", label: "Battery lockout enter", step: "0.01", suffix: "V", help: "Low-voltage cutoff where the station protects the battery by sleeping." },
+  { key: "batteryLockoutResumeVoltageV", label: "Battery lockout resume", step: "0.01", suffix: "V", help: "Recovery voltage required before battery lockout is released." },
+  { key: "batteryLockoutWakeMs", label: "Battery lockout wake", step: "1000", suffix: "ms", help: "Timer interval for checking battery recovery while locked out." },
+  { key: "remoteConfigPullMs", label: "Remote config pull", step: "1000", suffix: "ms", help: "Minimum interval between remote config pulls during WiFi sessions." },
+  { key: "remoteFirmwareCheckMs", label: "Firmware check", step: "1000", suffix: "ms", help: "Minimum interval between remote firmware and SPIFFS update checks." }
 ];
 
 const boolFields: Array<{ key: ConfigBoolKey; label: string; help: string }> = [
@@ -1024,14 +1024,15 @@ export default function AdminClient() {
           <button className="admin-button primary" disabled={busy}>Save Config</button>
         </div>
 
-        <div className="admin-grid">
+        <div className="admin-grid remote-config-grid">
           {configFields.map(field => {
             const currentValue = stationNumberValue(stationConfig, field.key);
             const desiredValue = draftNumberValue(configDraft, field.key);
             const state = pendingNumberState(currentValue, desiredValue, field.suffix);
             return (
-              <label className="admin-field" key={field.key}>
+              <label className="admin-field config-field-card" key={field.key}>
                 <span>{field.label}</span>
+                <p className="admin-help field-help">{field.help}</p>
                 <div className="config-state">
                   <span>Current</span><b>{formatConfigNumber(currentValue, field.suffix)}</b>
                   <span>Desired</span><b>{desiredValue === undefined ? "Leave local" : formatConfigNumber(desiredValue, field.suffix)}</b>
@@ -1059,7 +1060,7 @@ export default function AdminClient() {
             const desiredValue = draftBoolValue(configDraft, field.key);
             const state = pendingBoolState(currentValue, desiredValue);
             return (
-              <label className="admin-field" key={field.key}>
+              <label className="admin-field config-field-card" key={field.key}>
                 <span>{field.label}</span>
                 <p className="admin-help field-help">{field.help}</p>
                 <div className="config-state">
