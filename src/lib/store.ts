@@ -28,6 +28,27 @@ const notificationSettingsKey = "weatherstation:notification-settings";
 const notificationDeliveryKey = "weatherstation:notification-delivery";
 const HISTORY_CAP = 10080;
 
+export type StorageDiagnostics = {
+  backend: "redis" | "memory";
+  provider: "upstash" | "vercel-kv" | "none";
+  configured: {
+    upstashUrl: boolean;
+    upstashToken: boolean;
+    kvUrl: boolean;
+    kvToken: boolean;
+  };
+  latest: {
+    exists: boolean;
+    receivedAt: string | null;
+  };
+  history: {
+    keyType: string;
+    length: number;
+    newestReceivedAt: string | null;
+    oldestReceivedAt: string | null;
+  };
+};
+
 type MemoryGlobal = typeof globalThis & {
   __weatherstationLatest?: WeatherStationTelemetry;
   __weatherstationHistory?: WeatherStationTelemetry[];
@@ -56,6 +77,12 @@ function redisClient() {
     url: redisUrl(),
     token: redisToken()
   });
+}
+
+function storageProvider(): StorageDiagnostics["provider"] {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) return "upstash";
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) return "vercel-kv";
+  return "none";
 }
 
 export async function saveLatestTelemetry(payload: WeatherStationTelemetry) {
@@ -95,6 +122,61 @@ export async function clearTelemetryHistory() {
     return;
   }
   (globalThis as MemoryGlobal).__weatherstationHistory = [];
+}
+
+export async function getStorageDiagnostics(): Promise<StorageDiagnostics> {
+  const configured = {
+    upstashUrl: Boolean(process.env.UPSTASH_REDIS_REST_URL),
+    upstashToken: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN),
+    kvUrl: Boolean(process.env.KV_REST_API_URL),
+    kvToken: Boolean(process.env.KV_REST_API_TOKEN)
+  };
+
+  if (kvConfigured()) {
+    const client = redisClient();
+    const [latest, keyType] = await Promise.all([
+      client.get<WeatherStationTelemetry>(latestKey),
+      client.type(historyKey)
+    ]);
+    const length = keyType === "list" ? await client.llen(historyKey) : 0;
+    const newestItems = length > 0 ? await client.lrange<WeatherStationTelemetry>(historyKey, 0, 0) : [];
+    const oldestItems = length > 0 ?
+      await client.lrange<WeatherStationTelemetry>(historyKey, length - 1, length - 1) : [];
+
+    return {
+      backend: "redis",
+      provider: storageProvider(),
+      configured,
+      latest: {
+        exists: Boolean(latest),
+        receivedAt: latest?.receivedAt ?? null
+      },
+      history: {
+        keyType,
+        length,
+        newestReceivedAt: newestItems[0]?.receivedAt ?? null,
+        oldestReceivedAt: oldestItems[0]?.receivedAt ?? null
+      }
+    };
+  }
+
+  const g = globalThis as MemoryGlobal;
+  const history = g.__weatherstationHistory ?? [];
+  return {
+    backend: "memory",
+    provider: "none",
+    configured,
+    latest: {
+      exists: Boolean(g.__weatherstationLatest),
+      receivedAt: g.__weatherstationLatest?.receivedAt ?? null
+    },
+    history: {
+      keyType: "memory-array",
+      length: history.length,
+      newestReceivedAt: history[0]?.receivedAt ?? null,
+      oldestReceivedAt: history[history.length - 1]?.receivedAt ?? null
+    }
+  };
 }
 
 export async function getRemoteConfig(): Promise<RemoteConfigRecord> {
