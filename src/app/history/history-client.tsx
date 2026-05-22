@@ -526,8 +526,8 @@ export default function HistoryClient() {
         </div>
         <div className="station-header-actions">
           <a className="station-nav-link" href="/">Dashboard</a>
-          <a className="station-nav-link" href="/archive">Archive</a>
           <a className="station-nav-link" href="/history" aria-current="page">History</a>
+          <a className="station-nav-link" href="/archive">Archive</a>
           <a className="station-nav-link" href="/admin">Admin</a>
           <span className={`station-status ${status}`}>{statusText}</span>
         </div>

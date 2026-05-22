@@ -447,8 +447,16 @@ export default function ArchiveClient() {
     };
   }, [data]);
 
-  const status: "online" | "waiting" | "error" = loading ? "waiting" : data.length > 0 ? "online" : "error";
-  const statusText = loading ? "Loading" : data.length > 0 ? `${data.length} days` : "No data";
+  const status: "online" | "waiting" | "error" =
+    loading ? "waiting" :
+    data.length > 0 ? "online" :
+    years.length === 0 ? "waiting" : // station is still gathering — not an error
+    "error";
+  const statusText =
+    loading ? "Loading" :
+    data.length > 0 ? `${data.length} days` :
+    years.length === 0 ? "Gathering" :
+    "No data";
 
   return (
     <main className="station-dashboard data-page archive-page">
@@ -460,8 +468,8 @@ export default function ArchiveClient() {
         </div>
         <div className="station-header-actions">
           <a className="station-nav-link" href="/">Dashboard</a>
-          <a className="station-nav-link" href="/archive" aria-current="page">Archive</a>
           <a className="station-nav-link" href="/history">History</a>
+          <a className="station-nav-link" href="/archive" aria-current="page">Archive</a>
           <a className="station-nav-link" href="/admin">Admin</a>
           <span className={`station-status ${status}`}>{statusText}</span>
         </div>
@@ -540,12 +548,16 @@ export default function ArchiveClient() {
             refMax={refMax}
             emojiStrip={emojiStrip}
           />
-        ) : !loading && selectedYear ? (
+        ) : loading ? (
+          <div className="chart-empty">Loading…</div>
+        ) : years.length === 0 ? (
+          <div className="chart-empty">Gathering data — come back in a few weeks.</div>
+        ) : selectedYear ? (
           <div className="chart-empty">
             No daily aggregates for {selectedYear}{selectedMonth ? ` / ${MONTHS[selectedMonth - 1]}` : ""}.
           </div>
         ) : (
-          <div className="chart-empty">Loading…</div>
+          <div className="chart-empty">Select a year to view archive.</div>
         )}
       </section>
 

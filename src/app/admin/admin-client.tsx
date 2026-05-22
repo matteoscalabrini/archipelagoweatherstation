@@ -622,8 +622,8 @@ export default function AdminClient() {
           </div>
           <div className="station-header-actions">
             <a className="station-nav-link" href="/">Dashboard</a>
-            <a className="station-nav-link" href="/archive">Archive</a>
             <a className="station-nav-link" href="/history">History</a>
+            <a className="station-nav-link" href="/archive">Archive</a>
             <a className="station-nav-link" href="/admin" aria-current="page">Admin</a>
             <span className="station-status error">Locked</span>
           </div>
@@ -646,8 +646,8 @@ export default function AdminClient() {
           </div>
           <div className="station-header-actions">
             <a className="station-nav-link" href="/">Dashboard</a>
-            <a className="station-nav-link" href="/archive">Archive</a>
             <a className="station-nav-link" href="/history">History</a>
+            <a className="station-nav-link" href="/archive">Archive</a>
             <a className="station-nav-link" href="/admin" aria-current="page">Admin</a>
             <span className="station-status waiting">Admin</span>
           </div>
@@ -704,8 +704,8 @@ export default function AdminClient() {
         </div>
         <div className="station-header-actions">
           <a className="station-nav-link" href="/">Dashboard</a>
-          <a className="station-nav-link" href="/archive">Archive</a>
           <a className="station-nav-link" href="/history">History</a>
+          <a className="station-nav-link" href="/archive">Archive</a>
           <a className="station-nav-link" href="/admin" aria-current="page">Admin</a>
           <span className={`station-status ${connected ? "online" : "waiting"}`}>
             {connected ? "Station" : "Waiting"}

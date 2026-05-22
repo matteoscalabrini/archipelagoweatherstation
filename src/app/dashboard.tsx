@@ -477,8 +477,8 @@ export default function Dashboard() {
         </div>
         <div className="station-header-actions">
           <a className="station-nav-link" href="/" aria-current="page">Dashboard</a>
-          <a className="station-nav-link" href="/archive">Archive</a>
           <a className="station-nav-link" href="/history">History</a>
+          <a className="station-nav-link" href="/archive">Archive</a>
           <a className="station-nav-link" href="/admin">Admin</a>
           <span className={`station-status ${status}`}>{error || (connected ? "Online" : "Waiting")}</span>
         </div>
