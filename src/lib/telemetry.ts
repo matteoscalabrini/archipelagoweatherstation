@@ -35,6 +35,7 @@ export type WeatherStationTelemetry = {
   firmwareVersion?: string;
   spiffsVersion?: string;
   uptimeMs?: number;
+  cumulativeUptimeMs?: number;
   solarMode?: "unknown" | "dark" | "shadow" | "sun" | string;
   displaysForcedOff?: boolean;
   wifi?: {

@@ -26,6 +26,7 @@ const firmwareManifestKey = "weatherstation:firmware-manifest";
 const alertRulesKey = "weatherstation:alert-rules";
 const notificationSettingsKey = "weatherstation:notification-settings";
 const notificationDeliveryKey = "weatherstation:notification-delivery";
+const cumulativeUptimeStateKey = "weatherstation:cumulative-uptime-state";
 const HISTORY_CAP = 10080;
 
 export type StorageDiagnostics = {
@@ -58,6 +59,12 @@ type MemoryGlobal = typeof globalThis & {
   __weatherstationAlertRules?: AlertRulesRecord;
   __weatherstationNotificationSettings?: NotificationSettingsRecord;
   __weatherstationNotificationDelivery?: NotificationDeliveryState;
+  __weatherstationCumulativeUptime?: CumulativeUptimeState;
+};
+
+type CumulativeUptimeState = {
+  lastSeenBootUptimeMs: number | null;
+  cumulativeOffsetMs: number;
 };
 
 function kvConfigured() {
@@ -86,18 +93,26 @@ function storageProvider(): StorageDiagnostics["provider"] {
 }
 
 export async function saveLatestTelemetry(payload: WeatherStationTelemetry) {
+  // Compute cumulative uptime from per-boot uptimeMs
+  const cumulativeUptimeMs = await computeCumulativeUptime(payload.uptimeMs);
+
+  const enrichedPayload: WeatherStationTelemetry = {
+    ...payload,
+    cumulativeUptimeMs
+  };
+
   if (kvConfigured()) {
     const client = redisClient();
     await Promise.all([
-      client.set(latestKey, payload),
-      client.lpush(historyKey, payload)
+      client.set(latestKey, enrichedPayload),
+      client.lpush(historyKey, enrichedPayload)
     ]);
     await client.ltrim(historyKey, 0, HISTORY_CAP - 1);
     return;
   }
   const g = globalThis as MemoryGlobal;
-  g.__weatherstationLatest = payload;
-  g.__weatherstationHistory = [payload, ...(g.__weatherstationHistory ?? [])].slice(0, HISTORY_CAP);
+  g.__weatherstationLatest = enrichedPayload;
+  g.__weatherstationHistory = [enrichedPayload, ...(g.__weatherstationHistory ?? [])].slice(0, HISTORY_CAP);
 }
 
 export async function getLatestTelemetry() {
@@ -122,6 +137,62 @@ export async function clearTelemetryHistory() {
     return;
   }
   (globalThis as MemoryGlobal).__weatherstationHistory = [];
+}
+
+/**
+ * Get the current cumulative uptime state.
+ */
+async function getCumulativeUptimeState(): Promise<CumulativeUptimeState> {
+  const empty: CumulativeUptimeState = { lastSeenBootUptimeMs: null, cumulativeOffsetMs: 0 };
+  if (kvConfigured()) {
+    const record = await redisClient().get<CumulativeUptimeState>(cumulativeUptimeStateKey);
+    return record ?? empty;
+  }
+  return (globalThis as MemoryGlobal).__weatherstationCumulativeUptime ?? empty;
+}
+
+/**
+ * Save the cumulative uptime state.
+ */
+async function saveCumulativeUptimeState(state: CumulativeUptimeState): Promise<void> {
+  if (kvConfigured()) {
+    await redisClient().set(cumulativeUptimeStateKey, state);
+    return;
+  }
+  (globalThis as MemoryGlobal).__weatherstationCumulativeUptime = state;
+}
+
+/**
+ * Compute cumulative uptime from the current boot's uptimeMs.
+ *
+ * Logic:
+ * - On first telemetry: store lastSeenBootUptimeMs and set offset to 0
+ * - If current uptimeMs < previous uptimeMs → device rebooted, add old value to offset
+ * - Otherwise (normal increment): update lastSeenBootUptimeMs
+ */
+export async function computeCumulativeUptime(currentBootUptimeMs: number | undefined): Promise<number> {
+  if (!currentBootUptimeMs || currentBootUptimeMs <= 0) return 0;
+
+  const state = await getCumulativeUptimeState();
+
+  let newOffset = state.cumulativeOffsetMs;
+  let lastSeen = state.lastSeenBootUptimeMs;
+
+  if (lastSeen === null) {
+    // First telemetry ever — just record it
+    lastSeen = currentBootUptimeMs;
+  } else if (currentBootUptimeMs < lastSeen) {
+    // Device rebooted: add the previous boot's uptime to cumulative offset
+    newOffset += lastSeen;
+    lastSeen = currentBootUptimeMs;
+  } else {
+    // Normal increment within same boot cycle — just update last seen
+    lastSeen = currentBootUptimeMs;
+  }
+
+  await saveCumulativeUptimeState({ lastSeenBootUptimeMs: lastSeen, cumulativeOffsetMs: newOffset });
+
+  return newOffset + currentBootUptimeMs;
 }
 
 export async function getStorageDiagnostics(): Promise<StorageDiagnostics> {

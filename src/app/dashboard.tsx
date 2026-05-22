@@ -604,8 +604,8 @@ export default function Dashboard() {
             <div className="system-diagnostics-value">{solarLabel(telemetry?.solarMode)}</div>
           </div>
           <div className="system-diagnostics-box">
-            <div className="system-diagnostics-label">Uptime</div>
-            <div className="system-diagnostics-value">{uptime(telemetry?.uptimeMs)}</div>
+            <div className="system-diagnostics-label">Total Uptime</div>
+            <div className="system-diagnostics-value">{uptime(telemetry?.cumulativeUptimeMs ?? telemetry?.uptimeMs)}</div>
           </div>
           <div className="system-diagnostics-box">
             <div className="system-diagnostics-label">Network</div>
