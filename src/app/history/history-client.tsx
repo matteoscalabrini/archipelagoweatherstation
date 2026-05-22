@@ -1,38 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deriveWeatherInsights } from "@/lib/insights";
+import { weatherEmoji } from "@/lib/insights";
 import type { DisplayReading, WeatherStationTelemetry } from "@/lib/telemetry";
 
 /* ==========================================================================
-   HISTORY FILE LEGEND
-   --------------------------------------------------------------------------
-   1) API and chart data types
-   2) Formatting helpers
-   3) Series/stat builders
-   4) History chart renderer
-   5) Main History component (fetch, derive, render)
+   HISTORY CLIENT — technical chart over short-term telemetry
    ========================================================================== */
 
-/* 1) API and chart data types. */
 type HistoryResponse = {
   success: boolean;
   history: WeatherStationTelemetry[];
 };
 
-type Point = {
-  t: number;
-  v: number;
-};
-
-type Series = {
-  key: string;
-  label: string;
-  unit: string;
-  online: boolean;
-  points: Point[];
-};
-
+type Point = { t: number; v: number };
+type Series = { key: string; label: string; unit: string; online: boolean; points: Point[] };
 type RangeKey = "6h" | "24h" | "7d" | "all";
 
 const ranges: Array<{ key: RangeKey; label: string; ms: number | null }> = [
@@ -42,7 +24,8 @@ const ranges: Array<{ key: RangeKey; label: string; ms: number | null }> = [
   { key: "all", label: "All", ms: null }
 ];
 
-/* 2) Formatting helpers. */
+/* ──────────────────────── Helpers ──────────────────────── */
+
 function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -50,14 +33,6 @@ function toNumber(value: unknown): number | null {
     return Number.isFinite(n) ? n : null;
   }
   return null;
-}
-
-function displayKey(display: DisplayReading, index: number) {
-  return `display-${index}::${display.primaryUnit ?? ""}`;
-}
-
-function displayLabel(display: DisplayReading, index: number) {
-  return display.label || `Channel ${index + 1}`;
 }
 
 function fmt(value: number | null | undefined, unit = "") {
@@ -102,9 +77,7 @@ function spanLabel(points: Point[]) {
 }
 
 function stats(points: Point[]) {
-  if (points.length === 0) {
-    return { latest: null, min: null, max: null, avg: null, delta: null };
-  }
+  if (points.length === 0) return { latest: null, min: null, max: null, avg: null, delta: null };
   const values = points.map(point => point.v);
   const total = values.reduce((sum, value) => sum + value, 0);
   return {
@@ -114,6 +87,27 @@ function stats(points: Point[]) {
     avg: total / values.length,
     delta: values.length > 1 ? values[values.length - 1] - values[0] : null
   };
+}
+
+function trendDelta(points: Point[], windowMs: number): number | null {
+  if (points.length < 2) return null;
+  const last = points[points.length - 1];
+  const target = last.t - windowMs;
+  let earlier: Point = points[0];
+  for (const p of points) {
+    if (p.t <= target) earlier = p;
+    else break;
+  }
+  if (earlier === last) return null;
+  return last.v - earlier.v;
+}
+
+function displayKey(display: DisplayReading, index: number) {
+  return `display-${index}::${display.primaryUnit ?? ""}`;
+}
+
+function displayLabel(display: DisplayReading, index: number) {
+  return display.label || `Channel ${index + 1}`;
 }
 
 function buildSeries(history: WeatherStationTelemetry[]): Series[] {
@@ -163,15 +157,6 @@ function filterPoints(points: Point[], range: RangeKey) {
   return points.filter(point => point.t >= since);
 }
 
-function solarLabel(mode?: string) {
-  switch ((mode ?? "unknown").toLowerCase()) {
-    case "sun": return "Sun";
-    case "shadow": return "Shadow";
-    case "dark": return "Dark";
-    default: return "Unknown";
-  }
-}
-
 function healthTone(latest?: WeatherStationTelemetry) {
   if (!latest?.receivedAt) return "waiting";
   const ageMs = Date.now() - new Date(latest.receivedAt).getTime();
@@ -180,36 +165,124 @@ function healthTone(latest?: WeatherStationTelemetry) {
   return "online";
 }
 
-/* 3) Series/stat builders. */
-function buildReport(series: Series | undefined, points: Point[], sampleCount: number) {
-  if (!series || points.length < 2) return "Waiting for enough numeric telemetry to describe this window.";
-  const s = stats(points);
-  const direction = s.delta === null || Math.abs(s.delta) < 0.001
-    ? "held steady"
-    : s.delta > 0
-      ? "rose"
-      : "fell";
-  return `${series.label} ${direction} ${fmt(Math.abs(s.delta ?? 0), series.unit)} across ${sampleCount} samples. Range ${fmt(s.min, series.unit)} to ${fmt(s.max, series.unit)}.`;
+/* ─────────── Daily emoji-strip computation (history) ─────────── */
+
+type DayBucket = {
+  date: string;
+  midpointT: number;
+  emoji: string;
+  tooltip: string;
+};
+
+function findDisplayValue(snapshot: WeatherStationTelemetry, labelTokens: string[], unitTokens: string[]): number | null {
+  if (!snapshot.displays) return null;
+  for (const display of snapshot.displays) {
+    const label = (display.label ?? "").toLowerCase();
+    const unit = (display.primaryUnit ?? "").toLowerCase();
+    const labelMatch = labelTokens.some(token => label.includes(token));
+    const unitMatch = unitTokens.some(token => unit.includes(token));
+    if (labelMatch || unitMatch) {
+      const v = toNumber(display.primary);
+      if (v !== null) return v;
+    }
+  }
+  return null;
 }
 
-/* 4) History chart renderer (display-inspired chart panel) with cursor tracking. */
-function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
-  const width = 760;
-  const height = 300;
-  const pad = { top: 18, right: 18, bottom: 34, left: 52 };
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [cursor, setCursor] = useState<{ svgX: number; svgY: number; point: Point; nearestIndex: number } | null>(null);
+function dateKey(t: number): string {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
-  if (points.length < 2) {
-    return (
-      <div className="history-series-empty">
-        Waiting for enough samples.
-      </div>
-    );
+function dateNoonMs(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0).getTime();
+}
+
+function buildDayBuckets(windowHistory: WeatherStationTelemetry[]): DayBucket[] {
+  type Accum = {
+    date: string;
+    tempSum: number;
+    tempCount: number;
+    humSum: number;
+    humCount: number;
+    pressFirst: number | null;
+    pressLast: number | null;
+  };
+
+  const map = new Map<string, Accum>();
+
+  for (const snap of windowHistory) {
+    const t = snap.receivedAt ? new Date(snap.receivedAt).getTime() : NaN;
+    if (!Number.isFinite(t)) continue;
+
+    const date = dateKey(t);
+    let acc = map.get(date);
+    if (!acc) {
+      acc = { date, tempSum: 0, tempCount: 0, humSum: 0, humCount: 0, pressFirst: null, pressLast: null };
+      map.set(date, acc);
+    }
+
+    const temp = findDisplayValue(snap, ["temp", "temperature"], ["°c", "c", "°f", "f"]);
+    if (temp !== null) {
+      let t2 = temp;
+      const t2Unit = (snap.displays?.find(d => /temp|temperature/i.test(d.label ?? ""))?.primaryUnit ?? "").toLowerCase();
+      if (t2Unit.includes("f") && !t2Unit.includes("c")) t2 = (t2 - 32) * 5 / 9;
+      acc.tempSum += t2;
+      acc.tempCount++;
+    }
+
+    const hum = findDisplayValue(snap, ["humid", "rh"], ["%"]);
+    if (hum !== null) {
+      acc.humSum += hum;
+      acc.humCount++;
+    }
+
+    const press = findDisplayValue(snap, ["pres", "baro"], ["hpa", "mbar"]);
+    if (press !== null) {
+      if (acc.pressFirst === null) acc.pressFirst = press;
+      acc.pressLast = press;
+    }
   }
 
-  const xs = points.map(point => point.t);
-  const ys = points.map(point => point.v);
+  const buckets: DayBucket[] = [];
+  for (const acc of map.values()) {
+    const tempAvg = acc.tempCount > 0 ? acc.tempSum / acc.tempCount : null;
+    const humAvg = acc.humCount > 0 ? acc.humSum / acc.humCount : null;
+    const pressDelta = acc.pressFirst !== null && acc.pressLast !== null ? acc.pressLast - acc.pressFirst : null;
+    buckets.push({
+      date: acc.date,
+      midpointT: dateNoonMs(acc.date),
+      emoji: weatherEmoji(tempAvg, humAvg, pressDelta),
+      tooltip: `${acc.date} · ${fmt(tempAvg, "°C")} · ${fmt(humAvg, "%")}`
+    });
+  }
+
+  buckets.sort((a, b) => a.midpointT - b.midpointT);
+  return buckets;
+}
+
+/* ─────────── Technical chart component ─────────── */
+
+type TechnicalChartProps = {
+  points: Point[];
+  unit: string;
+  emojiStrip?: DayBucket[];
+};
+
+function TechnicalChart({ points, unit, emojiStrip }: TechnicalChartProps) {
+  const width = 760;
+  const height = 280;
+  const pad = { top: 16, right: 36, bottom: 32, left: 52 };
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [cursor, setCursor] = useState<{ svgX: number; svgY: number; point: Point } | null>(null);
+
+  if (points.length < 2) {
+    return <div className="chart-empty">Waiting for enough samples.</div>;
+  }
+
+  const xs = points.map(p => p.t);
+  const ys = points.map(p => p.v);
   const xMin = xs[0];
   const xMax = xs[xs.length - 1];
   const yMinRaw = Math.min(...ys);
@@ -224,13 +297,22 @@ function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
 
   const x = (value: number) => pad.left + ((value - xMin) / xRange) * innerWidth;
   const y = (value: number) => pad.top + (1 - (value - yMin) / yRange) * innerHeight;
+
   const path = points
-    .map((point, index) => `${index === 0 ? "M" : "L"}${x(point.t).toFixed(1)},${y(point.v).toFixed(1)}`)
+    .map((p, i) => `${i === 0 ? "M" : "L"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`)
     .join(" ");
   const area = `${path} L${x(points[points.length - 1].t).toFixed(1)},${height - pad.bottom} L${x(points[0].t).toFixed(1)},${height - pad.bottom} Z`;
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(ratio => yMin + (yMax - yMin) * ratio);
-  const xTicks = [0, 0.5, 1].map(ratio => xMin + (xMax - xMin) * ratio);
-  const last = points[points.length - 1];
+
+  const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1].map(r => yMin + yRange * r);
+  // 7 x-axis ticks; lean to actual data range
+  const xTicks = Array.from({ length: 7 }, (_, i) => xMin + (xRange * i) / 6);
+
+  // Reference lines: min / avg / max of the visible points
+  const s = stats(points);
+  const refLines: Array<{ label: string; value: number }> = [];
+  if (s.min !== null) refLines.push({ label: "MIN", value: s.min });
+  if (s.avg !== null) refLines.push({ label: "AVG", value: s.avg });
+  if (s.max !== null) refLines.push({ label: "MAX", value: s.max });
 
   function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
     const svg = svgRef.current;
@@ -238,110 +320,134 @@ function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
     const rect = svg.getBoundingClientRect();
     const scaleX = width / rect.width;
     const svgX = (e.clientX - rect.left) * scaleX;
-    // Clamp to chart area
     const clampedX = Math.max(pad.left, Math.min(width - pad.right, svgX));
-    // Convert SVG X back to data time
     const dataTime = xMin + ((clampedX - pad.left) / innerWidth) * xRange;
-    // Find nearest point
     let nearestIdx = 0;
     let nearestDist = Infinity;
     for (let i = 0; i < points.length; i++) {
       const dist = Math.abs(points[i].t - dataTime);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestIdx = i;
-      }
+      if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
     }
     const nearest = points[nearestIdx];
-    setCursor({
-      svgX: x(nearest.t),
-      svgY: y(nearest.v),
-      point: nearest,
-      nearestIndex: nearestIdx
-    });
+    setCursor({ svgX: x(nearest.t), svgY: y(nearest.v), point: nearest });
   }
 
-  function handlePointerLeave() {
-    setCursor(null);
-  }
+  function handlePointerLeave() { setCursor(null); }
 
   return (
-    <div className="history-chart-container">
+    <div className="chart-wrap">
+      {/* Daily emoji strip (only when caller passes data) */}
+      {emojiStrip && emojiStrip.length > 0 && (
+        <div
+          className="chart-emoji-strip"
+          style={{
+            position: "relative",
+            paddingLeft: `${(pad.left / width) * 100}%`,
+            paddingRight: `${(pad.right / width) * 100}%`
+          }}
+        >
+          {emojiStrip
+            .filter(b => b.midpointT >= xMin && b.midpointT <= xMax)
+            .map((bucket, i) => {
+              const fraction = (bucket.midpointT - xMin) / xRange;
+              return (
+                <div
+                  key={i}
+                  className="chart-emoji-cell"
+                  title={bucket.tooltip}
+                  style={{
+                    position: "absolute",
+                    left: `calc(${(pad.left / width) * 100}% + ${fraction * 100}% - ${((pad.left + pad.right) / width) * fraction * 100}%)`,
+                    top: 0,
+                    bottom: 0,
+                    transform: "translateX(-50%)"
+                  }}
+                >
+                  {bucket.emoji}
+                </div>
+              );
+            })}
+        </div>
+      )}
+
       <svg
         ref={svgRef}
-        className="history-series-chart"
+        className="chart-svg"
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="Selected sensor history chart"
+        aria-label="Selected series technical chart"
         onPointerMove={handlePointerMove}
         onPointerLeave={handlePointerLeave}
         style={{ touchAction: "none" }}
       >
-        {yTicks.map(value => (
-          <g key={value}>
-            <line className="history-series-grid-line" x1={pad.left} y1={y(value)} x2={width - pad.right} y2={y(value)} />
-            <text className="history-series-axis-label" x={pad.left - 10} y={y(value) + 4} textAnchor="end">
+        {/* Horizontal grid lines */}
+        {yTicks.map((value, i) => (
+          <line key={`g-${i}`} className="chart-grid-line" x1={pad.left} y1={y(value)} x2={width - pad.right} y2={y(value)} />
+        ))}
+
+        {/* Reference lines (min/avg/max) */}
+        {refLines.map((ref, i) => (
+          <g key={`ref-${i}`}>
+            <line className="chart-reference-line" x1={pad.left} y1={y(ref.value)} x2={width - pad.right} y2={y(ref.value)} />
+            <text className="chart-reference-label" x={width - pad.right + 3} y={y(ref.value) + 3} textAnchor="start">
+              {ref.label} {fmt(ref.value, unit)}
+            </text>
+          </g>
+        ))}
+
+        {/* Area + line */}
+        <path className="chart-area" d={area} />
+        <path className="chart-line" d={path} />
+
+        {/* Axes */}
+        <line className="chart-axis" x1={pad.left} y1={height - pad.bottom} x2={width - pad.right} y2={height - pad.bottom} />
+        <line className="chart-axis" x1={pad.left} y1={pad.top} x2={pad.left} y2={height - pad.bottom} />
+
+        {/* Y-axis ticks + labels */}
+        {yTicks.map((value, i) => (
+          <g key={`yt-${i}`}>
+            <line className="chart-axis-tick" x1={pad.left - 3} y1={y(value)} x2={pad.left} y2={y(value)} />
+            <text className="chart-axis-label" x={pad.left - 6} y={y(value) + 3} textAnchor="end">
               {fmt(value, unit)}
             </text>
           </g>
         ))}
-        {xTicks.map(value => (
-          <text className="history-series-axis-label" key={value} x={x(value)} y={height - 10} textAnchor="middle">
-            {timeLabel(value)}
-          </text>
-        ))}
-        <path className="history-series-area" d={area} />
-        <path className="history-series-line" d={path} />
-        <rect className="history-series-last-dot" x={x(last.t) - 2.5} y={y(last.v) - 2.5} width="5" height="5" />
 
-        {/* Cursor crosshair + tooltip */}
+        {/* X-axis ticks + labels */}
+        {xTicks.map((value, i) => (
+          <g key={`xt-${i}`}>
+            <line className="chart-axis-tick" x1={x(value)} y1={height - pad.bottom} x2={x(value)} y2={height - pad.bottom + 3} />
+            <text className="chart-axis-label" x={x(value)} y={height - pad.bottom + 14} textAnchor="middle">
+              {timeLabel(value)}
+            </text>
+          </g>
+        ))}
+
+        {/* Cursor */}
         {cursor && (
           <>
-            {/* Vertical crosshair line */}
-            <line
-              className="history-chart-crosshair"
-              x1={cursor.svgX}
-              y1={pad.top}
-              x2={cursor.svgX}
-              y2={height - pad.bottom}
-            />
-            {/* Horizontal crosshair line */}
-            <line
-              className="history-chart-crosshair"
-              x1={pad.left}
-              y1={cursor.svgY}
-              x2={width - pad.right}
-              y2={cursor.svgY}
-            />
-            {/* Dot on the data point */}
-            <circle
-              className="history-chart-cursor-dot"
-              cx={cursor.svgX}
-              cy={cursor.svgY}
-              r={4}
-            />
-            {/* Tooltip background */}
+            <line className="chart-crosshair" x1={cursor.svgX} y1={pad.top} x2={cursor.svgX} y2={height - pad.bottom} />
+            <line className="chart-crosshair" x1={pad.left} y1={cursor.svgY} x2={width - pad.right} y2={cursor.svgY} />
+            <circle className="chart-cursor-dot" cx={cursor.svgX} cy={cursor.svgY} r={3.5} />
             <rect
-              className="history-chart-tooltip-bg"
+              className="chart-tooltip-bg"
               x={cursor.svgX + 8 > width - pad.right - 120 ? cursor.svgX - 128 : cursor.svgX + 8}
-              y={Math.max(pad.top, cursor.svgY - 32)}
+              y={Math.max(pad.top, cursor.svgY - 34)}
               width={120}
-              height={28}
+              height={30}
               rx={3}
             />
-            {/* Tooltip text: value */}
             <text
-              className="history-chart-tooltip-text"
+              className="chart-tooltip-text"
               x={cursor.svgX + 8 > width - pad.right - 120 ? cursor.svgX - 120 : cursor.svgX + 16}
-              y={Math.max(pad.top + 12, cursor.svgY - 14)}
+              y={Math.max(pad.top + 13, cursor.svgY - 19)}
             >
               {fmt(cursor.point.v, unit)}
             </text>
-            {/* Tooltip text: time */}
             <text
-              className="history-chart-tooltip-time"
+              className="chart-tooltip-time"
               x={cursor.svgX + 8 > width - pad.right - 120 ? cursor.svgX - 120 : cursor.svgX + 16}
-              y={Math.max(pad.top + 24, cursor.svgY - 2)}
+              y={Math.max(pad.top + 24, cursor.svgY - 8)}
             >
               {dateTimeLabel(cursor.point.t)}
             </text>
@@ -352,7 +458,8 @@ function HistoryChart({ points, unit }: { points: Point[]; unit: string }) {
   );
 }
 
-/* 5) Main history page component. */
+/* ─────────── Main History component ─────────── */
+
 export default function HistoryClient() {
   const [history, setHistory] = useState<WeatherStationTelemetry[]>([]);
   const [range, setRange] = useState<RangeKey>("24h");
@@ -362,10 +469,11 @@ export default function HistoryClient() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       try {
-        const res = await fetch("/api/history?limit=10080", { cache: "no-store" });
+        // cache: "no-cache" lets the browser do conditional GETs (If-None-Match)
+        // and serve the cached body when the server returns 304.
+        const res = await fetch("/api/history?limit=10080", { cache: "no-cache" });
         const json = await res.json() as HistoryResponse;
         if (cancelled) return;
         setHistory(json.history ?? []);
@@ -376,27 +484,23 @@ export default function HistoryClient() {
         if (!cancelled) setLoading(false);
       }
     }
-
     load();
-    // Refresh history every 30 seconds to keep trend context up to date.
-    const timer = window.setInterval(load, 30000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
+    // 2-min interval; ETag/304 makes idle refreshes essentially free.
+    const timer = window.setInterval(load, 120000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
 
   const series = useMemo(() => buildSeries(history), [history]);
   const selected = series.find(item => item.key === selectedKey) ?? series[0];
-  const points = selected ? filterPoints(selected.points, range) : [];
+  const points = useMemo(() => selected ? filterPoints(selected.points, range) : [], [selected, range]);
   const windowHistory = useMemo(() => filterHistory(history, range), [history, range]);
   const latest = history[0];
   const selectedStats = stats(points);
-  const insights = useMemo(() => deriveWeatherInsights(latest, windowHistory), [latest, windowHistory]);
-  const activeDisplays = latest?.displays?.filter(display => display.online).length ?? 0;
-  const totalDisplays = latest?.displays?.length ?? 0;
-  const sensorEntries = latest?.sensors ? Object.entries(latest.sensors) : [];
-  const failedSensors = sensorEntries.filter(([, ok]) => !ok).length;
+  const delta1h = trendDelta(points, 60 * 60 * 1000);
+
+  const showEmoji = range !== "6h";
+  const dayBuckets = useMemo(() => showEmoji ? buildDayBuckets(windowHistory) : [], [showEmoji, windowHistory]);
+
   const status = error ? "error" : loading ? "waiting" : healthTone(latest);
   const statusText = error || (
     loading ? "Loading" :
@@ -409,33 +513,43 @@ export default function HistoryClient() {
     if (!selectedKey && series[0]) setSelectedKey(series[0].key);
   }, [selectedKey, series]);
 
+  const deltaToneClass =
+    delta1h === null ? "" : delta1h > 0 ? "delta-up" : delta1h < 0 ? "delta-down" : "";
+
   return (
-    <main className="history-lab-page station-dashboard">
-      {/* Header: same language as dashboard, with history-specific title. */}
-      <nav className="station-header history-lab-header">
+    <main className="station-dashboard data-page">
+      {/* Header: same shape as dashboard with all 4 nav links */}
+      <nav className="station-header">
         <div className="station-brand-stack">
           <a className="brand station-brand-word" href="/">Archipelago</a>
-          <h1>
-            <em>History Lab</em>
-          </h1>
+          <h1><em>History</em></h1>
         </div>
         <div className="station-header-actions">
           <a className="station-nav-link" href="/">Dashboard</a>
+          <a className="station-nav-link" href="/archive">Archive</a>
+          <a className="station-nav-link" href="/history" aria-current="page">History</a>
           <a className="station-nav-link" href="/admin">Admin</a>
-          <span className={`station-status ${status}`}>
-            {statusText}
-          </span>
+          <span className={`station-status ${status}`}>{statusText}</span>
         </div>
       </nav>
 
-      {/* Toolbar: time window selector. */}
-      <div className="history-lab-toolbar">
-        <div className="history-range-selector" aria-label="History range">
+      {/* Meta strip — same Doto language as dashboard */}
+      <div className="station-meta-strip">
+        <span>Last <strong>{age(latest?.receivedAt)}</strong></span>
+        <span>Window <strong>{spanLabel(points)}</strong></span>
+        <span>Samples <strong>{windowHistory.length}</strong></span>
+        <span>Series <strong>{series.length || "--"}</strong></span>
+      </div>
+
+      {/* Toolbar: time-range chips */}
+      <div className="data-toolbar">
+        <label>Range</label>
+        <div className="chip-button-row" role="group" aria-label="History range">
           {ranges.map(item => (
             <button
-              className={item.key === range ? "active" : ""}
               key={item.key}
               type="button"
+              className={item.key === range ? "active" : ""}
               onClick={() => setRange(item.key)}
             >
               {item.label}
@@ -444,117 +558,75 @@ export default function HistoryClient() {
         </div>
       </div>
 
-      {/* Meta strip: context for selected time window and payload size. */}
-      <div className="station-meta-strip history-meta-strip">
-        <span>Last <strong>{age(latest?.receivedAt)}</strong></span>
-        <span>Window <strong>{spanLabel(points)}</strong></span>
-        <span>Samples <strong>{windowHistory.length}</strong></span>
-        <span>Series <strong>{series.length || "--"}</strong></span>
-      </div>
-
-      {/* Main board: chart panel + station insight panel. */}
-      <section className="history-lab-board">
-        <div className="history-lab-panel history-chart-panel">
-          <div className="history-panel-header">
-            <div>
-              <h2>{selected?.label ?? "No numeric series"}</h2>
-              <p>{selected ? `${points.length} plotted samples` : "Waiting for display telemetry"}</p>
+      {/* Chart panel */}
+      <section className="chart-panel">
+        <div className="chart-panel-head">
+          <div className="chart-panel-label">
+            <span className={`oled-status-pixel ${selected?.online ? "live" : ""}`} />
+            {selected?.label ?? "No numeric series"}
+          </div>
+          {selected && points.length >= 2 && (
+            <div className="chart-readout-strip">
+              <span>LATEST<strong>{fmt(selectedStats.latest, selected.unit)}</strong></span>
+              <span className={deltaToneClass}>Δ1H<strong>{fmtDelta(delta1h, selected.unit)}</strong></span>
+              <span>MIN<strong>{fmt(selectedStats.min, selected.unit)}</strong></span>
+              <span>MAX<strong>{fmt(selectedStats.max, selected.unit)}</strong></span>
             </div>
-            <span className={`history-series-status ${selected?.online ? "online" : ""}`}>
-              {selected?.online ? "Online" : "Idle"}
-            </span>
-          </div>
-
-          <div className="history-series-tabs" aria-label="Sensor series">
-            {series.map(item => (
-              <button
-                className={item.key === selected?.key ? "active" : ""}
-                key={item.key}
-                type="button"
-                onClick={() => setSelectedKey(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          <HistoryChart points={points} unit={selected?.unit ?? ""} />
+          )}
         </div>
 
-        <aside className="history-lab-panel history-insight-panel">
-          <div className="history-panel-header">
-            <div>
-              <h2>Station</h2>
-              <p>{latest?.board ?? "Weather Station"}</p>
-            </div>
-          </div>
-          <div className="history-station-list">
-            <div>
-              <span>Mode</span>
-              <strong>{solarLabel(latest?.solarMode)}</strong>
-            </div>
-            <div>
-              <span>Displays</span>
-              <strong>{activeDisplays} / {totalDisplays || "--"}</strong>
-            </div>
-            <div>
-              <span>Sensors</span>
-              <strong>{failedSensors === 0 ? "Clear" : `${failedSensors} flagged`}</strong>
-            </div>
-            <div>
-              <span>Network</span>
-              <strong>{latest?.wifi?.sta ? "Station" : latest?.wifi?.ap ? "Access Point" : "Offline"}</strong>
-            </div>
-          </div>
-          <div className="history-derived-grid">
-            {insights.values.slice(0, 4).map(item => (
-              <div className={item.tone ?? ""} key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-          <p className="history-lab-report">{insights.summary} {buildReport(selected, points, windowHistory.length)}</p>
-        </aside>
+        <TechnicalChart
+          points={points}
+          unit={selected?.unit ?? ""}
+          emojiStrip={showEmoji ? dayBuckets : undefined}
+        />
       </section>
 
-      {/* Focus stats: selected series key numbers. */}
-      <section className="history-selected-stat-grid" aria-label="Selected series statistics">
-        <article className="history-selected-stat">
-          <span>Latest</span>
-          <strong>{fmt(selectedStats.latest, selected?.unit)}</strong>
+      {/* Focus stats */}
+      <section className="stat-grid" aria-label="Selected series statistics">
+        <article className="stat-card">
+          <span className="stat-card-label">Latest</span>
+          <span className="stat-card-value">{fmt(selectedStats.latest, selected?.unit)}</span>
         </article>
-        <article className="history-selected-stat">
-          <span>Minimum</span>
-          <strong>{fmt(selectedStats.min, selected?.unit)}</strong>
+        <article className="stat-card">
+          <span className="stat-card-label">Minimum</span>
+          <span className="stat-card-value">{fmt(selectedStats.min, selected?.unit)}</span>
         </article>
-        <article className="history-selected-stat">
-          <span>Average</span>
-          <strong>{fmt(selectedStats.avg, selected?.unit)}</strong>
+        <article className="stat-card">
+          <span className="stat-card-label">Average</span>
+          <span className="stat-card-value">{fmt(selectedStats.avg, selected?.unit)}</span>
         </article>
-        <article className="history-selected-stat">
-          <span>Maximum</span>
-          <strong>{fmt(selectedStats.max, selected?.unit)}</strong>
+        <article className="stat-card">
+          <span className="stat-card-label">Maximum</span>
+          <span className="stat-card-value">{fmt(selectedStats.max, selected?.unit)}</span>
         </article>
-        <article className={`history-selected-stat ${selectedStats.delta && selectedStats.delta < 0 ? "down" : selectedStats.delta && selectedStats.delta > 0 ? "up" : ""}`}>
-          <span>Delta</span>
-          <strong>{fmtDelta(selectedStats.delta, selected?.unit)}</strong>
+        <article className={`stat-card ${selectedStats.delta && selectedStats.delta < 0 ? "down" : selectedStats.delta && selectedStats.delta > 0 ? "up" : ""}`}>
+          <span className="stat-card-label">Delta</span>
+          <span className="stat-card-value">{fmtDelta(selectedStats.delta, selected?.unit)}</span>
         </article>
       </section>
 
-      {/* All-series matrix: quick compare cards for each channel. */}
-      <section className="history-series-summary-grid" aria-label="All series summary">
+      {/* Per-series matrix (clickable to switch selected series) */}
+      <section className="series-grid" aria-label="All series summary">
         {series.map(item => {
           const itemPoints = filterPoints(item.points, range);
           const itemStats = stats(itemPoints);
+          const isActive = item.key === selected?.key;
           return (
-            <article className="history-series-card" key={item.key}>
+            <article
+              key={item.key}
+              className={`series-grid-card ${isActive ? "active" : ""}`}
+              onClick={() => setSelectedKey(item.key)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedKey(item.key); } }}
+            >
               <div className="oled-panel-head">
                 <span className={`oled-status-pixel ${item.online ? "live" : ""}`} />
                 <span className="oled-panel-label">{item.label}</span>
               </div>
-              <div className="history-series-card-value">{fmt(itemStats.latest, item.unit)}</div>
-              <div className="history-series-card-meta">
+              <div className="series-grid-card-value">{fmt(itemStats.latest, item.unit)}</div>
+              <div className="series-grid-card-meta">
                 <span>{fmt(itemStats.min, item.unit)}</span>
                 <span>{fmtDelta(itemStats.delta, item.unit)}</span>
                 <span>{fmt(itemStats.max, item.unit)}</span>

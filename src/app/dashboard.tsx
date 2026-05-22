@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deriveWeatherInsights } from "@/lib/insights";
+import { deriveWeatherInsights, weatherEmoji } from "@/lib/insights";
 import type { WeatherStationTelemetry } from "@/lib/telemetry";
 
 /* ==========================================================================
@@ -285,18 +285,7 @@ function signed(value: number | null, digits = 2) {
   return `${sign}${value.toFixed(digits)}`;
 }
 
-/* 6) Lightweight weather icon from current conditions + pressure trend. */
-function weatherEmoji(tempC: number | null, humidity: number | null, pressureDelta: number | null) {
-  if (tempC === null) return "🌡️";
-  if (pressureDelta !== null && pressureDelta <= -1.5 && (humidity ?? 0) > 80) return "⛈️";
-  if (humidity !== null && humidity > 85) return "🌧️";
-  if (tempC <= 2) return "❄️";
-  if (tempC >= 30) return "🔥";
-  if (pressureDelta !== null && pressureDelta > 1) return "☀️";
-  return "⛅";
-}
-
-/* 7) Matrix sparkline renderer used by non-forecast panels. */
+/* 6) Matrix sparkline renderer used by non-forecast panels. */
 function Sparkline({ points, live }: { points: Point[]; live?: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [grid, setGrid] = useState({ columns: 24, rows: 8 });
@@ -436,8 +425,8 @@ export default function Dashboard() {
     async function load() {
       try {
         const [latestRes, historyRes] = await Promise.all([
-          fetch("/api/latest", { cache: "no-store" }),
-          fetch("/api/history?limit=200", { cache: "no-store" })
+          fetch("/api/latest", { cache: "no-cache" }),
+          fetch("/api/history?limit=200", { cache: "no-cache" })
         ]);
         const latest = (await latestRes.json()) as LatestResponse;
         const hist = (await historyRes.json()) as HistoryResponse;
@@ -481,18 +470,16 @@ export default function Dashboard() {
       {/* Header: brand, navigation, and online/error state */}
       <nav className="station-header">
         <div className="station-brand-stack">
-          <span className="brand station-brand-word">Archipelago</span>
+          <a className="brand station-brand-word" href="/">Archipelago</a>
           <h1>
             <em>Weather Station</em>
           </h1>
         </div>
         <div className="station-header-actions">
-          <a className="station-nav-link" href="/history">
-            History
-          </a>
-          <a className="station-nav-link" href="/admin">
-            Admin
-          </a>
+          <a className="station-nav-link" href="/" aria-current="page">Dashboard</a>
+          <a className="station-nav-link" href="/archive">Archive</a>
+          <a className="station-nav-link" href="/history">History</a>
+          <a className="station-nav-link" href="/admin">Admin</a>
           <span className={`station-status ${status}`}>{error || (connected ? "Online" : "Waiting")}</span>
         </div>
       </nav>

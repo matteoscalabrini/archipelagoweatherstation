@@ -343,6 +343,25 @@ function buildSummary(insights: Omit<WeatherInsights, "summary" | "values">) {
   return sentences.join(" ");
 }
 
+/**
+ * Picks a representative weather emoji from current/aggregated conditions.
+ * `pressureDelta` is unsigned for daily aggregates (max−min) and signed for
+ * instantaneous trends. Negative signed deltas with humidity > 80 still imply a storm.
+ */
+export function weatherEmoji(
+  tempC: number | null,
+  humidity: number | null,
+  pressureDelta: number | null
+): string {
+  if (tempC === null) return "🌡️";
+  if (pressureDelta !== null && pressureDelta <= -1.5 && (humidity ?? 0) > 80) return "⛈️";
+  if (humidity !== null && humidity > 85) return "🌧️";
+  if (tempC <= 2) return "❄️";
+  if (tempC >= 30) return "🔥";
+  if (pressureDelta !== null && pressureDelta > 1) return "☀️";
+  return "⛅";
+}
+
 export function deriveWeatherInsights(latest: WeatherStationTelemetry | null | undefined, history: WeatherStationTelemetry[] = []): WeatherInsights {
   const temp = temperatureC(latest);
   const humidity = humidityPct(latest);

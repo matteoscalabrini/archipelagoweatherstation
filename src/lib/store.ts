@@ -17,6 +17,15 @@ import {
   type NotificationSettingsRecord
 } from "./notification-settings";
 import type { WeatherStationTelemetry } from "./telemetry";
+import {
+  createAccumulator,
+  updateAccumulator,
+  finalizeAccumulator,
+  extractRawTelemetryLine,
+  getDateStr,
+  type DailyAggregate,
+  type DailyAccumulator
+} from "./archive";
 
 const latestKey = "weatherstation:latest";
 const historyKey = "weatherstation:history";
@@ -27,6 +36,19 @@ const alertRulesKey = "weatherstation:alert-rules";
 const notificationSettingsKey = "weatherstation:notification-settings";
 const notificationDeliveryKey = "weatherstation:notification-delivery";
 const cumulativeUptimeStateKey = "weatherstation:cumulative-uptime-state";
+
+// Archive keys
+function dailyAggregateKey(dateStr: string) {
+  return `weatherstation:daily:${dateStr}`;
+}
+function dailyYearIndexKey(year: number) {
+  return `weatherstation:daily:index:${year}`;
+}
+function dailyMonthIndexKey(year: number, month: number) {
+  const mm = String(month).padStart(2, "0");
+  return `weatherstation:daily:index:${year}-${mm}`;
+}
+
 const HISTORY_CAP = 10080;
 
 export type StorageDiagnostics = {
@@ -60,6 +82,9 @@ type MemoryGlobal = typeof globalThis & {
   __weatherstationNotificationSettings?: NotificationSettingsRecord;
   __weatherstationNotificationDelivery?: NotificationDeliveryState;
   __weatherstationCumulativeUptime?: CumulativeUptimeState;
+  // Archive memory fallback
+  __archiveDailyAggregates?: Record<string, DailyAggregate>;
+  __archiveAccumulators?: Record<string, DailyAccumulator>;
 };
 
 type CumulativeUptimeState = {
@@ -108,11 +133,83 @@ export async function saveLatestTelemetry(payload: WeatherStationTelemetry) {
       client.lpush(historyKey, enrichedPayload)
     ]);
     await client.ltrim(historyKey, 0, HISTORY_CAP - 1);
-    return;
+  } else {
+    const g = globalThis as MemoryGlobal;
+    g.__weatherstationLatest = enrichedPayload;
+    g.__weatherstationHistory = [enrichedPayload, ...(g.__weatherstationHistory ?? [])].slice(0, HISTORY_CAP);
   }
-  const g = globalThis as MemoryGlobal;
-  g.__weatherstationLatest = enrichedPayload;
-  g.__weatherstationHistory = [enrichedPayload, ...(g.__weatherstationHistory ?? [])].slice(0, HISTORY_CAP);
+
+  // Archive: update daily aggregate and buffer raw telemetry
+  await processArchiveData(enrichedPayload);
+}
+
+/**
+ * Process archive data for a telemetry payload.
+ * Updates the daily accumulator and buffers raw telemetry lines.
+ */
+async function processArchiveData(payload: WeatherStationTelemetry): Promise<void> {
+  const receivedAt = payload.receivedAt;
+  if (!receivedAt) return;
+
+  const dateStr = getDateStr(receivedAt);
+
+  // Check if there's an existing accumulator for a different day (date boundary)
+  let acc = await getOrCreateAccumulator(dateStr);
+  
+  // If the accumulator is from a previous day, finalize it first
+  if (acc.date !== dateStr && acc.count > 0) {
+    const oldRecord = finalizeAccumulator(acc);
+    await saveDailyAggregate(oldRecord);
+
+    // Flush raw telemetry buffer for that old day to blob
+    try {
+      await flushRawTelemetryToBlob(acc.date);
+    } catch { /* non-critical */ }
+
+    // Start fresh accumulator for new date
+    acc = createAccumulator(dateStr);
+  }
+  
+  updateAccumulator(acc, payload);
+  await saveAccumulator(acc);
+
+  // Buffer raw telemetry line for blob export (will be flushed on date boundary)
+  const rawLine = extractRawTelemetryLine(payload);
+  await appendRawTelemetryBuffer(dateStr, rawLine);
+}
+
+/**
+ * Flush the raw telemetry buffer for a given day to Vercel Blob.
+ * Stored gzip-compressed as `.jsonl.gz` — weather data compresses ~85%,
+ * stretching the free-plan storage budget by an order of magnitude.
+ */
+async function flushRawTelemetryToBlob(dateStr: string): Promise<void> {
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!blobToken) return; // No blob configured
+
+  try {
+    const { put } = await import("@vercel/blob");
+    const { gzipSync } = await import("node:zlib");
+
+    const buffer = await getRawTelemetryBuffer(dateStr);
+    if (buffer.length === 0) return;
+
+    const content = buffer.join("\n") + "\n";
+    const compressed = gzipSync(Buffer.from(content, "utf8"), { level: 9 });
+    const pathname = `weather-history/raw/${dateStr.replace(/-/g, "/")}.jsonl.gz`;
+
+    // Write the full file — each day gets one blob write with all its data
+    await put(pathname, compressed, {
+      access: "private",
+      token: blobToken,
+      contentType: "application/gzip"
+    });
+
+    // Clear the buffer after successful upload
+    await clearRawTelemetryBuffer(dateStr);
+  } catch (error) {
+    console.error(`Failed to flush raw telemetry for ${dateStr}:`, error);
+  }
 }
 
 export async function getLatestTelemetry() {
@@ -405,4 +502,159 @@ export async function saveNotificationDeliveryState(state: NotificationDeliveryS
   }
   (globalThis as MemoryGlobal).__weatherstationNotificationDelivery = record;
   return record;
+}
+
+/* ==========================================================================
+   Archive — Daily Aggregates & Raw Telemetry Storage
+   ========================================================================== */
+
+/** Get a daily aggregate for the given date. */
+export async function getDailyAggregate(dateStr: string): Promise<DailyAggregate | null> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    return await client.get<DailyAggregate>(dailyAggregateKey(dateStr));
+  }
+  const g = globalThis as MemoryGlobal;
+  return g.__archiveDailyAggregates?.[dateStr] ?? null;
+}
+
+/** Save a daily aggregate record. */
+export async function saveDailyAggregate(record: DailyAggregate): Promise<void> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    await Promise.all([
+      client.set(dailyAggregateKey(record.date), record),
+      // Add to year index
+      client.sadd(dailyYearIndexKey(record.year), record.date),
+      // Add to month index
+      client.sadd(dailyMonthIndexKey(record.year, record.month), record.date)
+    ]);
+    return;
+  }
+  const g = globalThis as MemoryGlobal;
+  if (!g.__archiveDailyAggregates) {
+    g.__archiveDailyAggregates = {};
+  }
+  g.__archiveDailyAggregates[record.date] = record;
+}
+
+/** Get all daily aggregates for a given year. */
+export async function getDailyAggregatesForYear(year: number): Promise<DailyAggregate[]> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    const dates = await client.smembers(dailyYearIndexKey(year));
+    if (!dates || !Array.isArray(dates) || dates.length === 0) return [];
+    // Fetch all aggregates in parallel
+    const results: (DailyAggregate | null)[] = await Promise.all(
+      (dates as string[]).map((d: string) => client.get<DailyAggregate>(dailyAggregateKey(d)))
+    );
+    return results.filter((r): r is DailyAggregate => r !== null);
+  }
+  const g = globalThis as MemoryGlobal;
+  if (!g.__archiveDailyAggregates) return [];
+  return Object.values(g.__archiveDailyAggregates)
+    .filter(r => r.year === year)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Get all daily aggregates for a given month. */
+export async function getDailyAggregatesForMonth(year: number, month: number): Promise<DailyAggregate[]> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    const dates = await client.smembers(dailyMonthIndexKey(year, month));
+    if (!dates || !Array.isArray(dates) || dates.length === 0) return [];
+    const results: (DailyAggregate | null)[] = await Promise.all(
+      (dates as string[]).map((d: string) => client.get<DailyAggregate>(dailyAggregateKey(d)))
+    );
+    return results.filter((r): r is DailyAggregate => r !== null);
+  }
+  const g = globalThis as MemoryGlobal;
+  if (!g.__archiveDailyAggregates) return [];
+  return Object.values(g.__archiveDailyAggregates)
+    .filter(r => r.year === year && r.month === month)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Get the running accumulator for today (or create one). */
+export async function getOrCreateAccumulator(dateStr: string): Promise<DailyAccumulator> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    const existing = await client.get<DailyAccumulator>(`weatherstation:daily-acc:${dateStr}`);
+    return existing ?? createAccumulator(dateStr);
+  }
+  const g = globalThis as MemoryGlobal;
+  if (!g.__archiveAccumulators) {
+    g.__archiveAccumulators = {};
+  }
+  return g.__archiveAccumulators[dateStr] ?? createAccumulator(dateStr);
+}
+
+/** Save the running accumulator for a date. */
+export async function saveAccumulator(acc: DailyAccumulator): Promise<void> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    await client.set(`weatherstation:daily-acc:${acc.date}`, acc, { ex: 86400 * 2 });
+    return;
+  }
+  const g = globalThis as MemoryGlobal;
+  if (!g.__archiveAccumulators) {
+    g.__archiveAccumulators = {};
+  }
+  g.__archiveAccumulators[acc.date] = acc;
+}
+
+/** Append a raw telemetry line to the daily blob buffer in Redis. */
+export async function appendRawTelemetryBuffer(dateStr: string, line: object): Promise<void> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    await client.lpush(`weatherstation:daily-raw:${dateStr}`, JSON.stringify(line));
+    return;
+  }
+  // In-memory fallback — store as array
+  const g = globalThis as MemoryGlobal;
+  const key = `__archiveRawBuffer_${dateStr}`;
+  if (!(g as any)[key]) {
+    (g as any)[key] = [];
+  }
+  (g as any)[key].unshift(JSON.stringify(line));
+}
+
+/** Get the raw telemetry buffer for a date. */
+export async function getRawTelemetryBuffer(dateStr: string): Promise<string[]> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    return await client.lrange<string>(`weatherstation:daily-raw:${dateStr}`, 0, -1) ?? [];
+  }
+  const g = globalThis as MemoryGlobal;
+  const key = `__archiveRawBuffer_${dateStr}`;
+  return (g as any)[key] ?? [];
+}
+
+/** Clear the raw telemetry buffer for a date. */
+export async function clearRawTelemetryBuffer(dateStr: string): Promise<void> {
+  if (kvConfigured()) {
+    await redisClient().del(`weatherstation:daily-raw:${dateStr}`);
+    return;
+  }
+  const g = globalThis as MemoryGlobal;
+  delete (g as any)[`__archiveRawBuffer_${dateStr}`];
+}
+
+/** Get all available years that have daily aggregates. */
+export async function getAvailableYears(): Promise<number[]> {
+  if (kvConfigured()) {
+    const client = redisClient();
+    // Use keys() to find year index patterns — small dataset (~365 max)
+    const allKeys: string[] = await client.keys("weatherstation:daily:index:*");
+    const yearsSet: Set<string> = new Set();
+    for (const key of allKeys) {
+      const match = String(key).match(/weatherstation:daily:index:(\d{4})$/);
+      if (match) yearsSet.add(match[1]);
+    }
+    return Array.from(yearsSet).map(Number).sort((a, b) => a - b);
+  }
+  const g = globalThis as MemoryGlobal;
+  if (!g.__archiveDailyAggregates) return [];
+  const yearsSet = new Set(Object.values(g.__archiveDailyAggregates).map(r => r.year));
+  return Array.from(yearsSet).sort((a, b) => a - b);
 }
