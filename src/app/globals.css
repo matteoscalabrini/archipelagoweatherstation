@@ -876,12 +876,12 @@ main {
 }
 
 .chart-readout-strip strong {
-  color: var(--green);
+  color: #ffffff;
   font-weight: var(--doto-black);
   margin-left: 0.3rem;
 }
 
-.chart-readout-strip .delta-up { color: var(--green); }
+.chart-readout-strip .delta-up { color: #ffffff; }
 .chart-readout-strip .delta-down { color: var(--red); }
 
 /* Daily emoji strip: one row above the SVG, aligned to chart x-padding */
@@ -890,7 +890,7 @@ main {
   align-items: center;
   height: 1.55em;
   margin-bottom: 0.3rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--green) 14%, transparent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .chart-emoji-cell {
@@ -903,7 +903,7 @@ main {
 }
 
 .chart-emoji-empty {
-  color: color-mix(in srgb, var(--green) 32%, transparent);
+  color: rgba(255, 255, 255, 0.32);
   font-size: 1rem;
 }
 
@@ -935,7 +935,7 @@ main {
 }
 
 .chart-axis-label {
-  fill: color-mix(in srgb, var(--green) 75%, transparent);
+  fill: rgba(255, 255, 255, 0.7);
   font-family: 'Doto';
   font-weight: var(--doto-semibold);
   font-size: 10px;
@@ -961,24 +961,24 @@ main {
 
 .chart-line {
   fill: none;
-  stroke: var(--green);
+  stroke: #ffffff;
   stroke-width: 1.5;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 
 .chart-area {
-  fill: color-mix(in srgb, var(--green) 5%, transparent);
+  fill: rgba(255, 255, 255, 0.06);
 }
 
 .chart-day-bar {
-  stroke: color-mix(in srgb, var(--green) 35%, transparent);
+  stroke: rgba(255, 255, 255, 0.4);
   stroke-width: 1;
   shape-rendering: crispEdges;
 }
 
 .chart-day-dot {
-  fill: var(--green);
+  fill: #ffffff;
 }
 
 .chart-crosshair {
@@ -991,14 +991,14 @@ main {
 
 .chart-cursor-dot {
   fill: #ffffff;
-  stroke: var(--green);
+  stroke: rgba(0, 0, 0, 0.55);
   stroke-width: 1.5;
   pointer-events: none;
 }
 
 .chart-tooltip-bg {
   fill: rgba(0, 0, 0, 0.88);
-  stroke: var(--green);
+  stroke: #ffffff;
   stroke-width: 1;
   pointer-events: none;
 }
@@ -1014,7 +1014,7 @@ main {
 }
 
 .chart-tooltip-time {
-  fill: color-mix(in srgb, var(--green) 75%, transparent);
+  fill: rgba(255, 255, 255, 0.7);
   font-family: 'Doto';
   font-weight: var(--doto-semibold);
   font-size: 9px;
